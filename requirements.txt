@@ -1,0 +1,19 @@
+# DDA Toolkit - Python Dependencies
+
+# Database
+mysql-connector-python>=8.0.33
+
+# Data manipulation
+pandas>=1.5.0
+
+# Configuration
+PyYAML>=6.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# GUI (optional but recommended)
+ttkbootstrap>=1.10.0
+
+# Utilities
+python-dateutil>=2.8.0

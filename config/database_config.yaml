@@ -1,0 +1,29 @@
+# Database Connection Configuration
+
+default_connection:
+  host: localhost
+  port: 3306
+  user: root
+  charset: utf8mb4
+  connection_timeout: 10
+  autocommit: false
+
+# Backup Settings
+backup_settings:
+  enabled: true
+  location: ./backups
+  keep_last: 5
+  compression: true
+
+# Safety Settings
+safety_settings:
+  max_rows_per_update: 10000
+  require_confirmation: true
+  transaction_size: 1000
+  enable_dry_run: true
+
+# Logging
+logging:
+  level: INFO
+  log_queries: true
+  log_changes: true

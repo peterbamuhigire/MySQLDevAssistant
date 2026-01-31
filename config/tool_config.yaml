@@ -1,0 +1,25 @@
+# Tool Configuration
+
+name_generator:
+  default_distribution: proportional
+  allow_duplicates: false
+  preserve_null: true
+  case_sensitive: false
+  batch_size: 1000
+  auto_detect_columns: true
+
+# Logging Configuration
+logging:
+  level: INFO
+  file: ./logs/dda.log
+  max_size_mb: 10
+  backup_count: 5
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# UI Configuration
+ui:
+  theme: dark  # dark or light
+  font_family: "Segoe UI"
+  font_size: 10
+  window_width: 1000
+  window_height: 700
