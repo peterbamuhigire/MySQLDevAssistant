@@ -160,8 +160,8 @@ class CompanyNameGenerator:
         else:
             classification = random.choice(classification_df['name'].tolist())
 
-        # Combine into company name
-        return f"{name1}{name2} {classification}"
+        # Combine into company name with space between names and capitalization
+        return f"{name1.capitalize()} {name2.capitalize()} {classification}"
 
     def preview_changes(self, config: Dict[str, Any], limit: int = 10) -> List[Dict[str, Any]]:
         """

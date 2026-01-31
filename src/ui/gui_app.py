@@ -1969,7 +1969,7 @@ LIMIT 1000;  -- Batch size (repeats until all rows updated)
 -- Columns to update: {', '.join(company_cols)}
 --
 -- Format: Name1 + Name2 + Classification
--- Example: ArdsonBentley Associates, ApexDynamics Corporation
+-- Example: Ardson Bentley Associates, Apex Dynamics Corporation
 --
 -- Click 'Preview Changes' to see sample before/after
 -- Click 'Run Query' to execute the update"""
