@@ -1,5 +1,5 @@
 """
-DDA GUI Application - Enhanced with column selection, SQL preview, and data grid
+DDA GUI Application - Enhanced with explicit workflow steps
 """
 
 import tkinter as tk
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class DDAApplication:
-    """Main GUI Application with enhanced features."""
+    """Main GUI Application with explicit workflow."""
 
     def __init__(self, root):
         self.root = root
@@ -39,7 +39,8 @@ class DDAApplication:
                 'warning': '#FF9800',
                 'error': '#F44336',
                 'grid_bg': '#2d2d2d',
-                'grid_fg': '#ffffff'
+                'grid_fg': '#ffffff',
+                'info': '#00BCD4'
             },
             'light': {
                 'bg': '#f5f5f5',
@@ -54,7 +55,8 @@ class DDAApplication:
                 'warning': '#FF9800',
                 'error': '#F44336',
                 'grid_bg': '#ffffff',
-                'grid_fg': '#212121'
+                'grid_fg': '#212121',
+                'info': '#00BCD4'
             }
         }
 
@@ -80,12 +82,14 @@ class DDAApplication:
         self.gender_column_var = tk.StringVar()
         self.name_columns_listvar = tk.StringVar()
         self.target_gender = tk.StringVar(value='both')
+        self.full_name_mode = tk.BooleanVar(value=False)
 
         # Available columns
         self.available_columns = []
 
         # Data storage
         self.current_table_data = []
+        self.generated_sql = ""
 
         # Build UI
         self._create_ui()
@@ -143,14 +147,30 @@ class DDAApplication:
         self._create_data_grid_panel(middle_frame)
         self._create_sql_preview_panel(middle_frame)
 
-        # Right column - Configuration & Actions
-        right_frame = tk.Frame(content_frame, bg=self.colors['bg'], width=320)
-        right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(8, 0))
+        # Right column - Configuration & Actions (always visible)
+        right_frame = tk.Frame(content_frame, bg=self.colors['bg'], width=360)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, padx=(8, 0))
         right_frame.pack_propagate(False)
 
-        self._create_column_selection_panel(right_frame)
-        self._create_name_config_panel(right_frame)
-        self._create_action_panel(right_frame)
+        # Create scrollable frame for right column
+        right_canvas = tk.Canvas(right_frame, bg=self.colors['bg'], highlightthickness=0)
+        right_scrollbar = ttk.Scrollbar(right_frame, orient="vertical", command=right_canvas.yview)
+        right_scrollable = tk.Frame(right_canvas, bg=self.colors['bg'])
+
+        right_scrollable.bind(
+            "<Configure>",
+            lambda e: right_canvas.configure(scrollregion=right_canvas.bbox("all"))
+        )
+
+        right_canvas.create_window((0, 0), window=right_scrollable, anchor="nw")
+        right_canvas.configure(yscrollcommand=right_scrollbar.set)
+
+        right_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        right_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self._create_column_selection_panel(right_scrollable)
+        self._create_name_config_panel(right_scrollable)
+        self._create_action_panel(right_scrollable)
 
         # Footer - Status & Logs
         self._create_footer(main_frame)
@@ -203,8 +223,10 @@ class DDAApplication:
 
         if height:
             panel_frame.config(height=height)
-
-        panel_frame.pack(fill=tk.BOTH, expand=(height is None), pady=(0, 10))
+            panel_frame.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
+            panel_frame.pack_propagate(False)
+        else:
+            panel_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
         # Panel header
         header = tk.Frame(panel_frame, bg=self.colors['tertiary_bg'], height=32)
@@ -317,7 +339,7 @@ class DDAApplication:
         # Refresh button
         refresh_btn = tk.Button(
             content,
-            text="🔄 Refresh Data (Top 10)",
+            text="🔄 Refresh Sample Data",
             command=self._refresh_table_data,
             bg=self.colors['tertiary_bg'],
             fg=self.colors['fg'],
@@ -333,7 +355,7 @@ class DDAApplication:
         # Row count
         self.row_count_label = tk.Label(
             content,
-            text="Rows: -",
+            text="Total Rows: -",
             font=('Segoe UI', 9),
             fg=self.colors['text_secondary'],
             bg=self.colors['secondary_bg'],
@@ -343,7 +365,7 @@ class DDAApplication:
 
     def _create_data_grid_panel(self, parent):
         """Create data grid panel showing top 10 rows."""
-        content = self._create_panel(parent, "📊 Table Data (Top 10 Rows)", height=300)
+        content = self._create_panel(parent, "📊 Sample Data (Top 10 Rows)", height=300)
 
         # Create Treeview with scrollbars
         tree_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
@@ -391,12 +413,32 @@ class DDAApplication:
         self.sql_preview.pack(fill=tk.BOTH, expand=True)
 
         # Insert placeholder
-        self.sql_preview.insert(1.0, "-- SQL UPDATE statement will appear here after configuration\n-- Example: UPDATE `employees` SET `first_name` = 'NewName' WHERE `gender` = 'female'")
+        self.sql_preview.insert(1.0, "-- Click 'Generate SQL' to preview the UPDATE statement\n-- Configuration: Select columns, gender, and name groups first")
         self.sql_preview.config(state='disabled')
 
     def _create_column_selection_panel(self, parent):
-        """Create column selection panel."""
-        content = self._create_panel(parent, "🎯 Column Selection")
+        """Create column selection panel - always visible."""
+        # Create panel frame
+        panel_frame = tk.Frame(parent, bg=self.colors['secondary_bg'], relief=tk.FLAT)
+        panel_frame.pack(fill=tk.X, expand=False, pady=(0, 10))
+
+        # Panel header
+        header = tk.Frame(panel_frame, bg=self.colors['tertiary_bg'], height=32)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+
+        title_label = tk.Label(
+            header,
+            text="🎯 1. Column Selection",
+            font=('Segoe UI', 10, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['tertiary_bg']
+        )
+        title_label.pack(side=tk.LEFT, padx=12, pady=6)
+
+        # Panel content
+        content = tk.Frame(panel_frame, bg=self.colors['secondary_bg'], padx=12, pady=12)
+        content.pack(fill=tk.X, expand=False)
 
         # Gender column
         tk.Label(
@@ -414,7 +456,6 @@ class DDAApplication:
             font=('Segoe UI', 9)
         )
         self.gender_column_combo.pack(fill=tk.X, pady=(0, 12))
-        self.gender_column_combo.bind('<<ComboboxSelected>>', self._update_sql_preview)
 
         # Name columns
         tk.Label(
@@ -426,8 +467,9 @@ class DDAApplication:
         ).pack(anchor='w', pady=(0, 4))
 
         # Listbox for multiple selection
-        listbox_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
+        listbox_frame = tk.Frame(content, bg=self.colors['secondary_bg'], height=100)
         listbox_frame.pack(fill=tk.X, pady=(0, 8))
+        listbox_frame.pack_propagate(False)
 
         scrollbar = ttk.Scrollbar(listbox_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -440,7 +482,6 @@ class DDAApplication:
             bg=self.colors['tertiary_bg'],
             fg=self.colors['fg'],
             relief=tk.FLAT,
-            height=5,
             yscrollcommand=scrollbar.set,
             borderwidth=1,
             highlightthickness=1,
@@ -448,25 +489,57 @@ class DDAApplication:
             selectbackground=self.colors['accent']
         )
         self.name_columns_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.name_columns_listbox.bind('<<ListboxSelect>>', self._update_sql_preview)
 
         scrollbar.config(command=self.name_columns_listbox.yview)
 
-    def _create_name_config_panel(self, parent):
-        """Create name configuration panel."""
-        content = self._create_panel(parent, "⚙ Name Configuration")
+        # Full name mode checkbox
+        full_name_cb = tk.Checkbutton(
+            content,
+            text="  Full Name Mode (First Last in one column)",
+            variable=self.full_name_mode,
+            font=('Segoe UI', 9),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg'],
+            selectcolor=self.colors['tertiary_bg'],
+            activebackground=self.colors['secondary_bg']
+        )
+        full_name_cb.pack(anchor='w', pady=(0, 4))
 
-        # Gender selection
+    def _create_name_config_panel(self, parent):
+        """Create name configuration panel - always visible."""
+        # Create panel frame
+        panel_frame = tk.Frame(parent, bg=self.colors['secondary_bg'], relief=tk.FLAT)
+        panel_frame.pack(fill=tk.X, expand=False, pady=(0, 10))
+
+        # Panel header
+        header = tk.Frame(panel_frame, bg=self.colors['tertiary_bg'], height=32)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+
+        title_label = tk.Label(
+            header,
+            text="⚙ 2. Name Options",
+            font=('Segoe UI', 10, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['tertiary_bg']
+        )
+        title_label.pack(side=tk.LEFT, padx=12, pady=6)
+
+        # Panel content
+        content = tk.Frame(panel_frame, bg=self.colors['secondary_bg'], padx=12, pady=12)
+        content.pack(fill=tk.X, expand=False)
+
+        # Target Gender
         tk.Label(
             content,
             text="Target Gender:",
-            font=('Segoe UI', 9, 'bold'),
-            fg=self.colors['fg'],
+            font=('Segoe UI', 10, 'bold'),
+            fg=self.colors['accent'],
             bg=self.colors['secondary_bg']
-        ).pack(anchor='w', pady=(0, 4))
+        ).pack(anchor='w', pady=(0, 6))
 
         gender_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
-        gender_frame.pack(fill=tk.X, pady=(0, 12))
+        gender_frame.pack(fill=tk.X, pady=(0, 15))
 
         for gender in ['male', 'female', 'both']:
             rb = tk.Radiobutton(
@@ -474,45 +547,90 @@ class DDAApplication:
                 text=gender.capitalize(),
                 variable=self.target_gender,
                 value=gender,
-                font=('Segoe UI', 9),
+                font=('Segoe UI', 10),
                 fg=self.colors['fg'],
                 bg=self.colors['secondary_bg'],
                 selectcolor=self.colors['tertiary_bg'],
-                activebackground=self.colors['secondary_bg'],
-                command=self._update_sql_preview
+                activebackground=self.colors['secondary_bg']
             )
-            rb.pack(side=tk.LEFT, padx=(0, 15))
+            rb.pack(side=tk.LEFT, padx=(0, 20))
 
-        # Name groups
+        # Name Groups
         tk.Label(
             content,
             text="Name Groups:",
-            font=('Segoe UI', 9, 'bold'),
-            fg=self.colors['fg'],
+            font=('Segoe UI', 10, 'bold'),
+            fg=self.colors['accent'],
             bg=self.colors['secondary_bg']
-        ).pack(anchor='w', pady=(0, 4))
+        ).pack(anchor='w', pady=(0, 6))
+
+        groups_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
+        groups_frame.pack(fill=tk.X)
 
         self.group_vars = {}
-        for group in ['English', 'Arabic', 'Asian', 'African', 'All']:
-            var = tk.BooleanVar(value=(group == 'All'))
+        groups_list = [
+            ('All', True),
+            ('English', False),
+            ('Arabic', False),
+            ('Asian', False),
+            ('African', False)
+        ]
+
+        for group, default in groups_list:
+            var = tk.BooleanVar(value=default)
             self.group_vars[group] = var
 
             cb = tk.Checkbutton(
-                content,
-                text=group,
+                groups_frame,
+                text=f"  {group}",
                 variable=var,
-                font=('Segoe UI', 9),
+                font=('Segoe UI', 10),
                 fg=self.colors['fg'],
                 bg=self.colors['secondary_bg'],
                 selectcolor=self.colors['tertiary_bg'],
-                activebackground=self.colors['secondary_bg'],
-                command=self._update_sql_preview
+                activebackground=self.colors['secondary_bg']
             )
-            cb.pack(anchor='w', pady=2)
+            cb.pack(anchor='w', pady=3)
 
     def _create_action_panel(self, parent):
-        """Create action buttons panel."""
-        content = self._create_panel(parent, "🚀 Actions")
+        """Create action buttons panel - always visible."""
+        # Create panel frame
+        panel_frame = tk.Frame(parent, bg=self.colors['secondary_bg'], relief=tk.FLAT)
+        panel_frame.pack(fill=tk.X, expand=False, pady=(0, 10))
+
+        # Panel header
+        header = tk.Frame(panel_frame, bg=self.colors['tertiary_bg'], height=32)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+
+        title_label = tk.Label(
+            header,
+            text="🚀 3. Execute",
+            font=('Segoe UI', 10, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['tertiary_bg']
+        )
+        title_label.pack(side=tk.LEFT, padx=12, pady=6)
+
+        # Panel content
+        content = tk.Frame(panel_frame, bg=self.colors['secondary_bg'], padx=12, pady=12)
+        content.pack(fill=tk.X, expand=False)
+
+        # Generate SQL button
+        generate_btn = tk.Button(
+            content,
+            text="📝 Generate SQL Statement",
+            command=self._generate_sql,
+            bg=self.colors['info'],
+            fg='white',
+            font=('Segoe UI', 10, 'bold'),
+            relief=tk.FLAT,
+            padx=20,
+            pady=10,
+            cursor='hand2',
+            borderwidth=0
+        )
+        generate_btn.pack(fill=tk.X, pady=(0, 10))
 
         # Preview button
         preview_btn = tk.Button(
@@ -528,14 +646,34 @@ class DDAApplication:
             cursor='hand2',
             borderwidth=0
         )
-        preview_btn.pack(fill=tk.X, pady=(0, 8))
+        preview_btn.pack(fill=tk.X, pady=(0, 10))
 
         # Execute button
         execute_btn = tk.Button(
             content,
-            text="▶ Execute Update",
+            text="▶ Run Query (Update Names)",
             command=self._execute_update,
             bg=self.colors['success'],
+            fg='white',
+            font=('Segoe UI', 11, 'bold'),
+            relief=tk.FLAT,
+            padx=20,
+            pady=12,
+            cursor='hand2',
+            borderwidth=0
+        )
+        execute_btn.pack(fill=tk.X, pady=(0, 15))
+
+        # Separator
+        separator = tk.Frame(content, bg=self.colors['border'], height=1)
+        separator.pack(fill=tk.X, pady=(0, 15))
+
+        # Randomize Gender button
+        randomize_gender_btn = tk.Button(
+            content,
+            text="🎲 Randomize Gender Column",
+            command=self._randomize_gender,
+            bg=self.colors['info'],
             fg='white',
             font=('Segoe UI', 10, 'bold'),
             relief=tk.FLAT,
@@ -544,7 +682,7 @@ class DDAApplication:
             cursor='hand2',
             borderwidth=0
         )
-        execute_btn.pack(fill=tk.X)
+        randomize_gender_btn.pack(fill=tk.X)
 
     def _create_footer(self, parent):
         """Create footer with status and logs."""
@@ -692,9 +830,6 @@ class DDAApplication:
                 # Load data grid
                 self._refresh_table_data()
 
-                # Update SQL preview
-                self._update_sql_preview()
-
     def _refresh_table_data(self):
         """Refresh the data grid with top 10 rows."""
         table = self.selected_table.get()
@@ -703,7 +838,7 @@ class DDAApplication:
             return
 
         try:
-            self._log("Refreshing table data...", 'info')
+            self._log("Refreshing sample data...", 'info')
 
             # Get top 10 rows
             data = self.db_manager.get_sample_data(table, limit=10, database=self.database_var.get())
@@ -742,42 +877,59 @@ class DDAApplication:
         selected_indices = self.name_columns_listbox.curselection()
         return [self.available_columns[i] for i in selected_indices]
 
-    def _update_sql_preview(self, event=None):
-        """Update SQL preview based on current configuration."""
-        table = self.selected_table.get()
-        gender_col = self.gender_column_var.get()
-        name_cols = self._get_selected_name_columns()
-        target_gender = self.target_gender.get()
-
-        if not table or not gender_col or not name_cols:
+    def _generate_sql(self):
+        """Generate SQL UPDATE statement."""
+        if not self._validate_config():
             return
 
-        # Build sample SQL
-        set_clauses = ", ".join([f"`{col}` = '[RandomName]'" for col in name_cols])
+        try:
+            table = self.selected_table.get()
+            gender_col = self.gender_column_var.get()
+            name_cols = self._get_selected_name_columns()
+            target_gender = self.target_gender.get()
+            selected_groups = [g for g, v in self.group_vars.items() if v.get()]
 
-        # Build WHERE clause based on target gender
-        where_clause = ""
-        if target_gender == 'male':
-            where_clause = f"WHERE `{gender_col}` IN ('male', 'Male', 'M', 'm', '1')"
-        elif target_gender == 'female':
-            where_clause = f"WHERE `{gender_col}` IN ('female', 'Female', 'F', 'f', '2')"
-        else:  # both
-            where_clause = f"WHERE `{gender_col}` IS NOT NULL"
+            # Build sample SQL
+            set_clauses = ", ".join([f"`{col}` = '[RandomName]'" for col in name_cols])
 
-        sql = f"""-- Sample UPDATE statement (actual names will vary)
+            # Build WHERE clause based on target gender
+            where_clause = ""
+            if target_gender == 'male':
+                where_clause = f"WHERE `{gender_col}` IN ('male', 'Male', 'M', 'm', '1')"
+            elif target_gender == 'female':
+                where_clause = f"WHERE `{gender_col}` IN ('female', 'Female', 'F', 'f', '2')"
+            else:  # both
+                where_clause = f"WHERE `{gender_col}` IS NOT NULL"
+
+            sql = f"""-- Generated UPDATE statement
+-- This will update names in batches of 1000 rows with transaction safety
+
 UPDATE `{table}`
 SET {set_clauses}
 {where_clause}
-LIMIT 1000;  -- Batch size
+LIMIT 1000;  -- Batch size (repeats until all matching rows updated)
 
--- This is a preview. Actual execution uses transactions with rollback support.
--- Selected groups: {', '.join([g for g, v in self.group_vars.items() if v.get()])}"""
+-- Configuration:
+-- Target Gender: {target_gender}
+-- Name Groups: {', '.join(selected_groups)}
+-- Columns to update: {', '.join(name_cols)}
+--
+-- Click 'Preview Changes' to see sample before/after
+-- Click 'Run Query' to execute the update"""
 
-        # Update preview
-        self.sql_preview.config(state='normal')
-        self.sql_preview.delete(1.0, tk.END)
-        self.sql_preview.insert(1.0, sql)
-        self.sql_preview.config(state='disabled')
+            # Store for later use
+            self.generated_sql = sql
+
+            # Update preview
+            self.sql_preview.config(state='normal')
+            self.sql_preview.delete(1.0, tk.END)
+            self.sql_preview.insert(1.0, sql)
+            self.sql_preview.config(state='disabled')
+
+            self._log("✓ SQL statement generated", 'success')
+
+        except Exception as e:
+            self._log(f"Error generating SQL: {e}", 'error')
 
     def _preview_changes(self):
         """Preview changes with actual sample data."""
@@ -872,29 +1024,32 @@ LIMIT 1000;  -- Batch size
         # Confirmation dialog
         name_cols = self._get_selected_name_columns()
         table = self.selected_table.get()
+        selected_groups = [g for g, v in self.group_vars.items() if v.get()]
 
-        msg = f"""Are you sure you want to update the following columns in '{table}'?
+        msg = f"""Are you sure you want to run this query?
 
+Table: {table}
 Columns: {', '.join(name_cols)}
 Target Gender: {self.target_gender.get()}
-Groups: {', '.join([g for g, v in self.group_vars.items() if v.get()])}
+Name Groups: {', '.join(selected_groups)}
+Full Name Mode: {'Yes' if self.full_name_mode.get() else 'No'}
 
-This operation will modify your database.
-A transaction will be used (can rollback on error)."""
+This will modify your database.
+Transactions will be used (can rollback on error)."""
 
-        if not messagebox.askyesno("Confirm Update", msg):
+        if not messagebox.askyesno("Confirm Query Execution", msg):
             return
 
         try:
-            self._log("Executing update...", 'info')
-            self.status_label.config(text="● Executing update... Please wait", fg=self.colors['warning'])
+            self._log("Running query...", 'info')
+            self.status_label.config(text="● Running query... Please wait", fg=self.colors['warning'])
             self.root.update()
 
             config = self._build_config()
             result = self.name_randomizer.execute_update(config, dry_run=False)
 
             # Show results
-            success_msg = f"""Update Completed Successfully!
+            success_msg = f"""Query Completed Successfully!
 
 Total Rows: {result['total_rows']}
 Updated: {result['updated_rows']}
@@ -904,15 +1059,91 @@ Errors: {len(result['errors'])}"""
             if result['errors']:
                 success_msg += f"\n\nFirst error: {result['errors'][0]}"
 
-            self._log(f"✓ Update complete: {result['updated_rows']} rows updated", 'success')
-            messagebox.showinfo("Update Complete", success_msg)
+            self._log(f"✓ Query complete: {result['updated_rows']} rows updated", 'success')
+            messagebox.showinfo("Query Complete", success_msg)
 
-            # Refresh data grid
+            # Auto-refresh sample data
+            self._log("Auto-refreshing sample data...", 'info')
             self._refresh_table_data()
 
         except Exception as e:
-            self._log(f"✗ Update failed: {e}", 'error')
-            messagebox.showerror("Update Error", f"Update failed:\n\n{str(e)}")
+            self._log(f"✗ Query failed: {e}", 'error')
+            messagebox.showerror("Query Error", f"Query failed:\n\n{str(e)}")
+        finally:
+            self.status_label.config(text="● Ready", fg=self.colors['text_secondary'])
+
+    def _randomize_gender(self):
+        """Randomize gender column with random male/female values."""
+        if not self.db_manager:
+            messagebox.showerror("Error", "Please connect to database first")
+            return
+
+        if not self.selected_table.get():
+            messagebox.showerror("Error", "Please select a table")
+            return
+
+        if not self.gender_column_var.get():
+            messagebox.showerror("Error", "Please select a gender column")
+            return
+
+        table = self.selected_table.get()
+        gender_col = self.gender_column_var.get()
+
+        # Confirmation
+        msg = f"""Randomize Gender Column?
+
+Table: {table}
+Column: {gender_col}
+
+This will randomly assign 'male' or 'female' to all rows.
+Useful for generating test data.
+
+Continue?"""
+
+        if not messagebox.askyesno("Confirm Gender Randomization", msg):
+            return
+
+        try:
+            self._log("Randomizing gender column...", 'info')
+            self.status_label.config(text="● Randomizing gender... Please wait", fg=self.colors['warning'])
+            self.root.update()
+
+            # Get total rows
+            total_rows = self.db_manager.get_row_count(table, None, self.database_var.get())
+
+            # Build UPDATE query using RAND()
+            sql = f"""UPDATE `{table}`
+SET `{gender_col}` = CASE
+    WHEN RAND() < 0.5 THEN 'male'
+    ELSE 'female'
+END"""
+
+            # Execute
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(sql)
+                affected_rows = cursor.rowcount
+                conn.commit()
+                cursor.close()
+
+            success_msg = f"""Gender Randomization Complete!
+
+Table: {table}
+Column: {gender_col}
+Rows Updated: {affected_rows}
+
+Gender values randomly assigned (50/50 split)."""
+
+            self._log(f"✓ Gender randomized: {affected_rows} rows updated", 'success')
+            messagebox.showinfo("Randomization Complete", success_msg)
+
+            # Auto-refresh sample data
+            self._log("Auto-refreshing sample data...", 'info')
+            self._refresh_table_data()
+
+        except Exception as e:
+            self._log(f"✗ Gender randomization failed: {e}", 'error')
+            messagebox.showerror("Error", f"Randomization failed:\n\n{str(e)}")
         finally:
             self.status_label.config(text="● Ready", fg=self.colors['text_secondary'])
 
@@ -954,7 +1185,8 @@ Errors: {len(result['errors'])}"""
             'distribution': 'proportional',
             'batch_size': 1000,
             'preserve_null': True,
-            'primary_key': 'id'
+            'primary_key': 'id',
+            'full_name_mode': self.full_name_mode.get()
         }
 
     def _log(self, message: str, level: str = 'info'):

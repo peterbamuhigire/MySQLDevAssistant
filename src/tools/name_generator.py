@@ -101,7 +101,7 @@ class NameRandomizer:
             return list(set(self.name_groups['male'] + self.name_groups['female']))
 
     def get_random_name(self, gender: str, groups: List[str] = None,
-                       distribution: str = 'proportional') -> str:
+                       distribution: str = 'proportional', full_name: bool = False) -> str:
         """
         Get a random name based on criteria.
 
@@ -109,6 +109,7 @@ class NameRandomizer:
             gender: 'male' or 'female'
             groups: List of group names (None = all groups)
             distribution: 'equal' or 'proportional'
+            full_name: If True, generate "FirstName LastName" format
 
         Returns:
             Random name string
@@ -127,12 +128,18 @@ class NameRandomizer:
             logger.warning(f"No names available for gender={gender}, groups={groups}")
             return f"Unknown_{gender}"
 
-        if distribution == 'equal':
-            # Equal chance for all groups - sample from all filtered names
-            return random.choice(names_df['name'].tolist())
-        else:  # proportional
-            # Proportional to group size
-            return random.choice(names_df['name'].tolist())
+        if full_name:
+            # Generate "FirstName LastName" format
+            first_name = random.choice(names_df['name'].tolist())
+            last_name = random.choice(names_df['name'].tolist())
+            return f"{first_name} {last_name}"
+        else:
+            if distribution == 'equal':
+                # Equal chance for all groups - sample from all filtered names
+                return random.choice(names_df['name'].tolist())
+            else:  # proportional
+                # Proportional to group size
+                return random.choice(names_df['name'].tolist())
 
     def preview_changes(self, config: Dict[str, Any], limit: int = 10) -> List[Dict[str, Any]]:
         """
@@ -156,16 +163,18 @@ class NameRandomizer:
         target_gender = Validator.normalize_gender(config['target_gender'])
         name_groups = config.get('name_groups', ['all'])
         where_clause = config.get('where_clause', None)
+        full_name_mode = config.get('full_name_mode', False)
 
         # Build WHERE clause
         where_parts = []
 
-        if target_gender == 'both':
-            # No gender filter
-            pass
-        else:
-            # Filter by gender
-            where_parts.append(f"`{gender_column}` IN ('male', 'female', 'M', 'F', '1', '2', 'Male', 'Female')")
+        if target_gender != 'both':
+            # Filter by specific gender
+            gender_values = {
+                'male': "('male', 'Male', 'MALE', 'M', 'm', '1')",
+                'female': "('female', 'Female', 'FEMALE', 'F', 'f', '2')"
+            }
+            where_parts.append(f"`{gender_column}` IN {gender_values[target_gender]}")
 
         if where_clause:
             where_parts.append(f"({where_clause})")
@@ -209,7 +218,8 @@ class NameRandomizer:
                         new_name = self.get_random_name(
                             gender=gender,
                             groups=name_groups,
-                            distribution=config.get('distribution', 'proportional')
+                            distribution=config.get('distribution', 'proportional'),
+                            full_name=full_name_mode
                         )
 
                         preview_row['updated'][name_col] = new_name
@@ -252,6 +262,7 @@ class NameRandomizer:
         target_gender = Validator.normalize_gender(config['target_gender'])
         name_groups = config.get('name_groups', ['all'])
         where_clause = config.get('where_clause', None)
+        full_name_mode = config.get('full_name_mode', False)
         batch_size = config.get('batch_size', 1000)
         preserve_null = config.get('preserve_null', True)
 
@@ -340,7 +351,8 @@ class NameRandomizer:
                                 new_name = self.get_random_name(
                                     gender=gender,
                                     groups=name_groups,
-                                    distribution=config.get('distribution', 'proportional')
+                                    distribution=config.get('distribution', 'proportional'),
+                                    full_name=full_name_mode
                                 )
 
                                 update_parts.append(f"`{name_col}` = %s")
@@ -361,7 +373,8 @@ class NameRandomizer:
                                     values.append(self.get_random_name(
                                         gender=gender,
                                         groups=name_groups,
-                                        distribution=config.get('distribution', 'proportional')
+                                        distribution=config.get('distribution', 'proportional'),
+                                        full_name=full_name_mode
                                     ))
                                 values.append(pk_value)
 
