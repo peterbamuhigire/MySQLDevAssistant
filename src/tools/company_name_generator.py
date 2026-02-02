@@ -290,9 +290,18 @@ class CompanyNameGenerator:
                             pk_value = row.get(pk_col)
 
                             if not pk_value:
-                                logger.warning(f"No primary key found for row: {row}")
-                                results['skipped_rows'] += 1
-                                continue
+                                # Try to find any unique identifier
+                                possible_keys = ['id', 'ID', 'Id', 'company_id', 'companyId', 'pk']
+                                for key in possible_keys:
+                                    if key in row and row.get(key):
+                                        pk_col = key
+                                        pk_value = row.get(key)
+                                        break
+
+                                if not pk_value:
+                                    # Skip row silently if no primary key found
+                                    results['skipped_rows'] += 1
+                                    continue
 
                             # Build UPDATE query
                             update_parts = []
@@ -324,8 +333,11 @@ class CompanyNameGenerator:
                             results['updated_rows'] += 1
 
                         except Exception as e:
-                            logger.error(f"Error processing row: {e}")
-                            results['errors'].append(str(e))
+                            pk_col = config.get('primary_key', 'id')
+                            pk_value = row.get(pk_col, 'unknown')
+                            error_msg = f"Row {pk_col}={pk_value}: {str(e)}"
+                            logger.error(f"Error processing row: {error_msg}")
+                            results['errors'].append(error_msg)
                             results['skipped_rows'] += 1
 
                     offset += batch_size

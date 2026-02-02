@@ -322,9 +322,10 @@ class NameRandomizer:
                             gender_value = str(row.get(gender_column, '')).lower()
                             gender = Validator.normalize_gender(gender_value)
 
+                            # If gender can't be determined, assign random gender
                             if not gender:
-                                results['skipped_rows'] += 1
-                                continue
+                                gender = random.choice(['male', 'female'])
+                                logger.info(f"Assigned random gender '{gender}' for row with invalid gender value: {gender_value}")
 
                             # Skip if target gender specified and doesn't match
                             if target_gender != 'both' and gender != target_gender:
@@ -332,14 +333,22 @@ class NameRandomizer:
                                 continue
 
                             # Get primary key for UPDATE
-                            # Assuming 'id' as primary key - should be configurable
                             pk_col = config.get('primary_key', 'id')
                             pk_value = row.get(pk_col)
 
                             if not pk_value:
-                                logger.warning(f"No primary key found for row: {row}")
-                                results['skipped_rows'] += 1
-                                continue
+                                # Try to find any unique identifier
+                                possible_keys = ['id', 'ID', 'Id', 'user_id', 'userId', 'pk']
+                                for key in possible_keys:
+                                    if key in row and row.get(key):
+                                        pk_col = key
+                                        pk_value = row.get(key)
+                                        break
+
+                                if not pk_value:
+                                    # Skip row silently if no primary key found
+                                    results['skipped_rows'] += 1
+                                    continue
 
                             # Build UPDATE query
                             update_parts = []
@@ -383,8 +392,11 @@ class NameRandomizer:
                             results['updated_rows'] += 1
 
                         except Exception as e:
-                            logger.error(f"Error processing row: {e}")
-                            results['errors'].append(str(e))
+                            pk_col = config.get('primary_key', 'id')
+                            pk_value = row.get(pk_col, 'unknown')
+                            error_msg = f"Row {pk_col}={pk_value}: {str(e)}"
+                            logger.error(f"Error processing row: {error_msg}")
+                            results['errors'].append(error_msg)
                             results['skipped_rows'] += 1
 
                     offset += batch_size

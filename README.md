@@ -5,9 +5,41 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-beta-yellow)
 
+---
+
+## ⚠️ **CRITICAL WARNING: DEVELOPMENT & TESTING ONLY** ⚠️
+
+### 🚫 **DO NOT USE ON PRODUCTION DATABASES** 🚫
+
+**This tool is designed EXCLUSIVELY for development and testing environments.**
+
+#### This tool will RANDOMLY MODIFY your data and is intended ONLY for:
+- ✅ Development databases
+- ✅ Testing databases
+- ✅ Staging/QA databases (with extreme caution)
+- ✅ Local test instances
+- ✅ Generating fake/test data
+
+#### **NEVER EVER use this tool on:**
+- ❌ Production databases
+- ❌ Live customer data
+- ❌ Any database containing real user information
+- ❌ Databases without complete backups
+- ❌ Any system where data integrity is critical
+
+#### **Using this tool on production data WILL:**
+- 🔥 Corrupt your database
+- 🔥 Destroy real information permanently
+- 🔥 Replace genuine data with random test data
+- 🔥 Make data recovery impossible without backups
+
+**IF YOU ARE NOT 100% CERTAIN THIS IS A TEST DATABASE, DO NOT PROCEED!**
+
+---
+
 ## 🚀 Overview
 
-The **Database Development Assistant (DDA)** is a comprehensive Python-based toolkit designed to streamline MySQL database development, testing, and data management. Built with developers and database administrators in mind, DDA provides intelligent tools for generating realistic test data, validating database schemas, and performing common development tasks efficiently and safely.
+The **Database Development Assistant (DDA)** is a comprehensive Python-based toolkit designed to streamline MySQL database development, testing, and data management. Built with developers and database administrators in mind, DDA provides intelligent tools for generating realistic test data, validating database schemas, and performing common development tasks efficiently and safely **in non-production environments**.
 
 ## ✨ Features
 
