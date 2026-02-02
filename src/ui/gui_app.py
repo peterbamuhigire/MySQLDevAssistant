@@ -12,6 +12,8 @@ from pathlib import Path
 from ..tools.name_generator import NameRandomizer
 from ..tools.company_name_generator import CompanyNameGenerator
 from ..tools.phone_number_generator import PhoneNumberGenerator
+from ..tools.date_randomizer import DateRandomizer
+from ..tools.code_generator import CodeGenerator
 from ..core.database_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,13 @@ class DDAApplication:
     def __init__(self, root):
         self.root = root
         self.root.title("⚠️ DDA Toolkit - DEVELOPMENT/TESTING ONLY - DO NOT USE ON PRODUCTION")
+
+        # Start maximized
+        self.root.state('zoomed')  # Windows
+        # Alternative for other platforms:
+        # self.root.attributes('-zoomed', True)  # Linux
+        # self.root.state('zoomed')  # macOS
+
         self.root.geometry("1400x900")
         self.root.minsize(1200, 800)
 
@@ -55,6 +64,8 @@ class DDAApplication:
         self.name_randomizer = None
         self.company_generator = None
         self.phone_generator = None
+        self.date_randomizer = None
+        self.code_generator = None
 
         # Connection variables (shared across tools)
         self.host_var = tk.StringVar(value='localhost')
@@ -85,10 +96,26 @@ class DDAApplication:
         self.phone_min_number = tk.StringVar(value='10000000')
         self.phone_max_number = tk.StringVar(value='99999999')
 
+        # Date Randomizer variables
+        self.date_selected_table = tk.StringVar()
+        self.date_columns_listvar = tk.StringVar()
+        self.date_start_date = tk.StringVar()
+        self.date_end_date = tk.StringVar()
+        self.date_include_time = tk.BooleanVar(value=True)
+
+        # Code Generator variables
+        self.code_selected_table = tk.StringVar()
+        self.code_columns_listvar = tk.StringVar()
+        self.code_type = tk.StringVar(value='mixed')
+        self.code_length = tk.StringVar(value='8')
+        self.code_prefix = tk.StringVar()
+
         # Available columns
         self.available_columns = []
         self.company_available_columns = []
         self.phone_available_columns = []
+        self.date_available_columns = []
+        self.code_available_columns = []
 
         # Data storage
         self.current_table_data = []
@@ -96,6 +123,9 @@ class DDAApplication:
 
         # Configure TTK style
         self._configure_ttk_style()
+
+        # Show critical warning popup before anything else
+        self._show_startup_warning()
 
         # Show home screen
         self._show_home_screen()
@@ -123,6 +153,63 @@ class DDAApplication:
 
         style.map('Custom.Treeview',
                  background=[('selected', self.colors['accent'])])
+
+    def _show_startup_warning(self):
+        """Show critical startup warning about development/testing only."""
+        warning_msg = """
+⚠️  CRITICAL WARNING  ⚠️
+
+DEVELOPMENT & TESTING DATABASES ONLY!
+
+This tool is designed EXCLUSIVELY for development and testing environments.
+
+🚫 NEVER use this on production databases
+🚫 NEVER connect to live customer data
+🚫 NEVER use in production environments
+
+This tool randomly modifies data and is intended ONLY for generating test data.
+
+Using this on production data WILL:
+• Corrupt your database
+• Destroy real information permanently
+• Replace genuine data with random test data
+• Make data recovery impossible without backups
+
+═══════════════════════════════════════
+
+IF YOU ARE NOT 100% CERTAIN THIS IS A
+TEST DATABASE, CLOSE THIS APPLICATION NOW!
+
+═══════════════════════════════════════
+
+Click OK only if you understand and accept these terms.
+        """
+
+        result = messagebox.showwarning(
+            "⚠️ CRITICAL WARNING - DEVELOPMENT/TESTING ONLY",
+            warning_msg,
+            icon='warning'
+        )
+
+        # If user closes the dialog without clicking OK, show it again
+        if result is None:
+            # User closed the window, ask for explicit confirmation
+            confirm = messagebox.askyesno(
+                "⚠️ Confirm Understanding",
+                "Do you understand that this tool is ONLY for development/testing databases?\n\n"
+                "Using this on production will DESTROY your data!\n\n"
+                "Click YES only if this is a TEST database.",
+                icon='warning'
+            )
+            if not confirm:
+                messagebox.showerror(
+                    "Application Closing",
+                    "Application will close to protect your production data.\n\n"
+                    "Only use this tool with development/testing databases."
+                )
+                self.root.quit()
+                import sys
+                sys.exit(0)
 
     def _create_name_randomizer_ui(self):
         """Create the name randomizer tool interface."""
@@ -779,46 +866,19 @@ class DDAApplication:
         )
         subtitle_label.pack(pady=(8, 0))
 
-        # CRITICAL WARNING - Development/Testing Only
-        warning_frame = tk.Frame(main_frame, bg=self.colors['error'], relief=tk.RAISED, bd=3)
-        warning_frame.pack(fill=tk.X, pady=(0, 30))
+        # Small warning reminder (main warning is popup)
+        reminder_frame = tk.Frame(main_frame, bg='#FFF3CD', relief=tk.FLAT, bd=1)
+        reminder_frame.pack(fill=tk.X, pady=(0, 20))
 
-        warning_header = tk.Frame(warning_frame, bg=self.colors['error'])
-        warning_header.pack(fill=tk.X, padx=20, pady=(15, 10))
-
-        warning_icon = tk.Label(
-            warning_header,
-            text="⚠",
-            font=('Segoe UI', 40, 'bold'),
-            fg='white',
-            bg=self.colors['error']
+        reminder_text = tk.Label(
+            reminder_frame,
+            text="⚠️  Reminder: Development & Testing Databases Only  ⚠️",
+            font=('Segoe UI', 10, 'bold'),
+            fg='#856404',
+            bg='#FFF3CD',
+            pady=10
         )
-        warning_icon.pack(side=tk.LEFT, padx=(0, 15))
-
-        warning_title = tk.Label(
-            warning_header,
-            text="DEVELOPMENT & TESTING ONLY",
-            font=('Segoe UI', 20, 'bold'),
-            fg='white',
-            bg=self.colors['error']
-        )
-        warning_title.pack(side=tk.LEFT)
-
-        warning_text = tk.Label(
-            warning_frame,
-            text="This tool is designed EXCLUSIVELY for development and testing databases.\n\n"
-                 "🚫 NEVER use this on production databases\n"
-                 "🚫 NEVER connect to live customer data\n"
-                 "🚫 NEVER use in production environments\n\n"
-                 "This tool randomly modifies data and is intended ONLY for generating test data.\n"
-                 "Using this on production data WILL corrupt your database and destroy real information.",
-            font=('Segoe UI', 11),
-            fg='white',
-            bg=self.colors['error'],
-            justify=tk.LEFT,
-            wraplength=800
-        )
-        warning_text.pack(padx=20, pady=(0, 15))
+        reminder_text.pack()
 
         # Tool selection frame
         tools_frame = tk.Frame(main_frame, bg=self.colors['bg'])
@@ -843,6 +903,18 @@ class DDAApplication:
                 'description': 'Generate random phone numbers with country codes',
                 'icon': '📱',
                 'command': self._show_phone_generator_screen
+            },
+            {
+                'name': 'Date Randomizer',
+                'description': 'Randomize date/datetime columns within date ranges',
+                'icon': '📅',
+                'command': self._show_date_randomizer_screen
+            },
+            {
+                'name': 'Code Generator',
+                'description': 'Generate random codes and serial numbers',
+                'icon': '🔢',
+                'command': self._show_code_generator_screen
             }
         ]
 
@@ -928,6 +1000,18 @@ class DDAApplication:
         self._clear_screen()
         self.current_screen = 'phone_generator'
         self._create_phone_generator_ui()
+
+    def _show_date_randomizer_screen(self):
+        """Show the date randomizer tool screen."""
+        self._clear_screen()
+        self.current_screen = 'date_randomizer'
+        self._create_date_randomizer_ui()
+
+    def _show_code_generator_screen(self):
+        """Show the code generator tool screen."""
+        self._clear_screen()
+        self.current_screen = 'code_generator'
+        self._create_code_generator_ui()
 
     def _create_company_generator_ui(self):
         """Create the company name generator tool interface."""
@@ -3335,6 +3419,2054 @@ Errors: {len(result['errors'])}"""
         }
 
         self.phone_status_label.config(
+            text=f"{status_symbols.get(level, '●')} {message}",
+            fg=colors.get(level, self.colors['fg'])
+        )
+
+    # Date Randomizer Methods
+
+    def _create_date_randomizer_ui(self):
+        """Create the date randomizer tool interface."""
+        # Main container
+        main_frame = tk.Frame(self.root, bg=self.colors['bg'], padx=15, pady=15)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Header with back button
+        self._create_header(main_frame, "Date Randomizer", show_back=True)
+
+        # Content area - 3 column layout
+        content_frame = tk.Frame(main_frame, bg=self.colors['bg'])
+        content_frame.pack(fill=tk.BOTH, expand=True, pady=15)
+
+        # Left column - Connection & Table
+        left_frame = tk.Frame(content_frame, bg=self.colors['bg'], width=300)
+        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 8))
+        left_frame.pack_propagate(False)
+
+        self._create_date_connection_panel(left_frame)
+        self._create_date_table_selection_panel(left_frame)
+
+        # Middle column - Data Grid & SQL Preview
+        middle_frame = tk.Frame(content_frame, bg=self.colors['bg'])
+        middle_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=8)
+
+        self._create_date_data_grid_panel(middle_frame)
+        self._create_date_sql_preview_panel(middle_frame)
+
+        # Right column - Configuration & Actions
+        right_frame = tk.Frame(content_frame, bg=self.colors['bg'], width=360)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, padx=(8, 0))
+        right_frame.pack_propagate(False)
+
+        # Create scrollable frame for right column
+        date_right_canvas = tk.Canvas(right_frame, bg=self.colors['bg'], highlightthickness=0)
+        date_right_scrollbar = ttk.Scrollbar(right_frame, orient="vertical", command=date_right_canvas.yview)
+        date_right_scrollable = tk.Frame(date_right_canvas, bg=self.colors['bg'])
+
+        def update_date_scrollregion(e=None):
+            date_right_canvas.configure(scrollregion=date_right_canvas.bbox("all"))
+
+        date_right_scrollable.bind("<Configure>", update_date_scrollregion)
+
+        date_right_canvas.create_window((0, 0), window=date_right_scrollable, anchor="nw", width=340)
+        date_right_canvas.configure(yscrollcommand=date_right_scrollbar.set)
+
+        # Enable mousewheel scrolling
+        def on_date_mousewheel(event):
+            date_right_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        date_right_canvas.bind_all("<MouseWheel>", on_date_mousewheel)
+
+        date_right_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        date_right_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self._create_date_column_selection_panel(date_right_scrollable)
+        self._create_date_config_panel(date_right_scrollable)
+        self._create_date_action_panel(date_right_scrollable)
+
+        # Footer - Status & Logs
+        self._create_date_footer(main_frame)
+
+    def _create_date_connection_panel(self, parent):
+        """Create database connection panel for date randomizer."""
+        content = self._create_panel(parent, "📊 Database Connection")
+
+        # Connection inputs (same as others)
+        fields = [
+            ("Host:", self.host_var, None),
+            ("Port:", self.port_var, None),
+            ("User:", self.user_var, None),
+            ("Password:", self.password_var, '*'),
+            ("Database:", self.database_var, None),
+        ]
+
+        for i, (label, var, show) in enumerate(fields):
+            self._create_input(content, label, var, i, show)
+
+        # Connect button
+        btn_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
+        btn_frame.grid(row=len(fields), column=0, columnspan=2, pady=(8, 0))
+
+        connect_btn = tk.Button(
+            btn_frame,
+            text="Connect & Load Tables",
+            command=self._test_date_connection,
+            bg=self.colors['accent'],
+            fg='white',
+            font=('Segoe UI', 9, 'bold'),
+            relief=tk.FLAT,
+            padx=15,
+            pady=6,
+            cursor='hand2',
+            borderwidth=0
+        )
+        connect_btn.pack()
+
+    def _create_date_table_selection_panel(self, parent):
+        """Create table selection panel for date randomizer."""
+        content = self._create_panel(parent, "📋 Table Selection")
+
+        # Table dropdown
+        tk.Label(
+            content,
+            text="Table:",
+            font=('Segoe UI', 9),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 4))
+
+        self.date_table_combo = ttk.Combobox(
+            content,
+            textvariable=self.date_selected_table,
+            state='readonly',
+            font=('Segoe UI', 9)
+        )
+        self.date_table_combo.pack(fill=tk.X, pady=(0, 8))
+        self.date_table_combo.bind('<<ComboboxSelected>>', self._on_date_table_selected)
+
+        # Refresh button
+        refresh_btn = tk.Button(
+            content,
+            text="🔄 Refresh Sample Data",
+            command=self._refresh_date_table_data,
+            bg=self.colors['tertiary_bg'],
+            fg=self.colors['fg'],
+            font=('Segoe UI', 9),
+            relief=tk.FLAT,
+            padx=10,
+            pady=5,
+            cursor='hand2',
+            borderwidth=0
+        )
+        refresh_btn.pack(fill=tk.X, pady=(0, 8))
+
+        # Row count
+        self.date_row_count_label = tk.Label(
+            content,
+            text="Total Rows: -",
+            font=('Segoe UI', 9),
+            fg=self.colors['text_secondary'],
+            bg=self.colors['secondary_bg'],
+            anchor='w'
+        )
+        self.date_row_count_label.pack(anchor='w')
+
+    def _create_date_data_grid_panel(self, parent):
+        """Create data grid panel for date randomizer."""
+        content = self._create_panel(parent, "📊 Sample Data (Top 10 Rows)", height=300)
+
+        # Create Treeview with scrollbars
+        tree_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Scrollbars
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical")
+        hsb = ttk.Scrollbar(tree_frame, orient="horizontal")
+
+        self.date_data_tree = ttk.Treeview(
+            tree_frame,
+            yscrollcommand=vsb.set,
+            xscrollcommand=hsb.set,
+            style="Custom.Treeview",
+            selectmode='browse'
+        )
+
+        vsb.config(command=self.date_data_tree.yview)
+        hsb.config(command=self.date_data_tree.xview)
+
+        # Grid layout
+        self.date_data_tree.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        hsb.grid(row=1, column=0, sticky='ew')
+
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+
+    def _create_date_sql_preview_panel(self, parent):
+        """Create SQL preview panel for date randomizer."""
+        content = self._create_panel(parent, "🔍 SQL Preview", height=150)
+
+        self.date_sql_preview = scrolledtext.ScrolledText(
+            content,
+            height=6,
+            font=('Courier New', 9),
+            bg=self.colors['tertiary_bg'],
+            fg=self.colors['fg'],
+            relief=tk.FLAT,
+            wrap=tk.WORD,
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground=self.colors['border']
+        )
+        self.date_sql_preview.pack(fill=tk.BOTH, expand=True)
+
+        # Insert placeholder
+        self.date_sql_preview.insert(1.0, "-- Click 'Generate SQL' to preview the UPDATE statement\n-- Configuration: Select date columns and date range first")
+        self.date_sql_preview.config(state='disabled')
+
+    def _create_date_column_selection_panel(self, parent):
+        """Create column selection panel for date randomizer."""
+        panel_frame = tk.Frame(parent, bg=self.colors['secondary_bg'], relief=tk.FLAT)
+        panel_frame.pack(fill=tk.X, expand=False, pady=(0, 10))
+
+        # Panel header
+        header = tk.Frame(panel_frame, bg=self.colors['tertiary_bg'], height=32)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+
+        title_label = tk.Label(
+            header,
+            text="🎯 1. Column Selection",
+            font=('Segoe UI', 10, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['tertiary_bg']
+        )
+        title_label.pack(side=tk.LEFT, padx=12, pady=6)
+
+        # Panel content
+        content = tk.Frame(panel_frame, bg=self.colors['secondary_bg'], padx=12, pady=12)
+        content.pack(fill=tk.X, expand=False)
+
+        # Date/Datetime columns
+        tk.Label(
+            content,
+            text="Date/Datetime Columns (select multiple):",
+            font=('Segoe UI', 9, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 4))
+
+        # Info label
+        tk.Label(
+            content,
+            text="Only DATE, DATETIME, and TIMESTAMP columns shown",
+            font=('Segoe UI', 8, 'italic'),
+            fg=self.colors['text_secondary'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 4))
+
+        # Listbox for multiple selection
+        listbox_frame = tk.Frame(content, bg=self.colors['secondary_bg'], height=120)
+        listbox_frame.pack(fill=tk.X, pady=(0, 8))
+        listbox_frame.pack_propagate(False)
+
+        scrollbar = ttk.Scrollbar(listbox_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.date_columns_listbox = tk.Listbox(
+            listbox_frame,
+            listvariable=self.date_columns_listvar,
+            selectmode=tk.MULTIPLE,
+            font=('Segoe UI', 9),
+            bg=self.colors['tertiary_bg'],
+            fg=self.colors['fg'],
+            relief=tk.FLAT,
+            yscrollcommand=scrollbar.set,
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground=self.colors['border'],
+            selectbackground=self.colors['accent']
+        )
+        self.date_columns_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scrollbar.config(command=self.date_columns_listbox.yview)
+
+    def _create_date_config_panel(self, parent):
+        """Create date configuration panel."""
+        panel_frame = tk.Frame(parent, bg=self.colors['secondary_bg'], relief=tk.FLAT)
+        panel_frame.pack(fill=tk.X, expand=False, pady=(0, 10))
+
+        # Panel header
+        header = tk.Frame(panel_frame, bg=self.colors['tertiary_bg'], height=32)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+
+        title_label = tk.Label(
+            header,
+            text="⚙ 2. Date Range Configuration",
+            font=('Segoe UI', 10, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['tertiary_bg']
+        )
+        title_label.pack(side=tk.LEFT, padx=12, pady=6)
+
+        # Panel content
+        content = tk.Frame(panel_frame, bg=self.colors['secondary_bg'], padx=12, pady=12)
+        content.pack(fill=tk.X, expand=False)
+
+        # Quick date presets
+        tk.Label(
+            content,
+            text="Quick Presets:",
+            font=('Segoe UI', 9, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 4))
+
+        presets_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
+        presets_frame.pack(fill=tk.X, pady=(0, 12))
+
+        presets = [
+            ("Last Year", 365),
+            ("Last 6 Months", 180),
+            ("Last 3 Months", 90),
+            ("Last Month", 30),
+            ("This Year", 0)
+        ]
+
+        for preset_name, days_ago in presets:
+            btn = tk.Button(
+                presets_frame,
+                text=preset_name,
+                command=lambda d=days_ago: self._set_date_preset(d),
+                bg=self.colors['tertiary_bg'],
+                fg=self.colors['fg'],
+                font=('Segoe UI', 8),
+                relief=tk.FLAT,
+                padx=8,
+                pady=4,
+                cursor='hand2'
+            )
+            btn.pack(side=tk.LEFT, padx=2)
+
+        # Start Date
+        tk.Label(
+            content,
+            text="Start Date:",
+            font=('Segoe UI', 9, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 4))
+
+        start_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
+        start_frame.pack(fill=tk.X, pady=(0, 12))
+
+        # Year, Month, Day dropdowns for start date
+        tk.Label(start_frame, text="Year:", bg=self.colors['secondary_bg'], font=('Segoe UI', 8)).pack(side=tk.LEFT, padx=(0, 4))
+        self.date_start_year = ttk.Combobox(start_frame, width=6, font=('Segoe UI', 9))
+        self.date_start_year['values'] = list(range(2020, 2031))
+        self.date_start_year.set(2024)
+        self.date_start_year.pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Label(start_frame, text="Month:", bg=self.colors['secondary_bg'], font=('Segoe UI', 8)).pack(side=tk.LEFT, padx=(0, 4))
+        self.date_start_month = ttk.Combobox(start_frame, width=4, font=('Segoe UI', 9))
+        self.date_start_month['values'] = list(range(1, 13))
+        self.date_start_month.set(1)
+        self.date_start_month.pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Label(start_frame, text="Day:", bg=self.colors['secondary_bg'], font=('Segoe UI', 8)).pack(side=tk.LEFT, padx=(0, 4))
+        self.date_start_day = ttk.Combobox(start_frame, width=4, font=('Segoe UI', 9))
+        self.date_start_day['values'] = list(range(1, 32))
+        self.date_start_day.set(1)
+        self.date_start_day.pack(side=tk.LEFT)
+
+        # End Date
+        tk.Label(
+            content,
+            text="End Date:",
+            font=('Segoe UI', 9, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 4))
+
+        end_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
+        end_frame.pack(fill=tk.X, pady=(0, 12))
+
+        # Year, Month, Day dropdowns for end date
+        tk.Label(end_frame, text="Year:", bg=self.colors['secondary_bg'], font=('Segoe UI', 8)).pack(side=tk.LEFT, padx=(0, 4))
+        self.date_end_year = ttk.Combobox(end_frame, width=6, font=('Segoe UI', 9))
+        self.date_end_year['values'] = list(range(2020, 2031))
+        self.date_end_year.set(2026)
+        self.date_end_year.pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Label(end_frame, text="Month:", bg=self.colors['secondary_bg'], font=('Segoe UI', 8)).pack(side=tk.LEFT, padx=(0, 4))
+        self.date_end_month = ttk.Combobox(end_frame, width=4, font=('Segoe UI', 9))
+        self.date_end_month['values'] = list(range(1, 13))
+        self.date_end_month.set(12)
+        self.date_end_month.pack(side=tk.LEFT, padx=(0, 8))
+
+        tk.Label(end_frame, text="Day:", bg=self.colors['secondary_bg'], font=('Segoe UI', 8)).pack(side=tk.LEFT, padx=(0, 4))
+        self.date_end_day = ttk.Combobox(end_frame, width=4, font=('Segoe UI', 9))
+        self.date_end_day['values'] = list(range(1, 32))
+        self.date_end_day.set(31)
+        self.date_end_day.pack(side=tk.LEFT)
+
+        # Include Time checkbox
+        include_time_cb = tk.Checkbutton(
+            content,
+            text="  Include Time Component (for DATETIME columns)",
+            variable=self.date_include_time,
+            font=('Segoe UI', 9),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg'],
+            selectcolor=self.colors['tertiary_bg'],
+            activebackground=self.colors['secondary_bg']
+        )
+        include_time_cb.pack(anchor='w', pady=(0, 4))
+
+        # Date range preview
+        self.date_range_preview = tk.Label(
+            content,
+            text="Date Range: -",
+            font=('Segoe UI', 8, 'italic'),
+            fg=self.colors['text_secondary'],
+            bg=self.colors['secondary_bg'],
+            anchor='w'
+        )
+        self.date_range_preview.pack(anchor='w')
+
+    def _create_date_action_panel(self, parent):
+        """Create action buttons panel for date randomizer."""
+        panel_frame = tk.Frame(parent, bg=self.colors['secondary_bg'], relief=tk.FLAT)
+        panel_frame.pack(fill=tk.X, expand=False, pady=(0, 10))
+
+        # Panel header
+        header = tk.Frame(panel_frame, bg=self.colors['tertiary_bg'], height=32)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+
+        title_label = tk.Label(
+            header,
+            text="🚀 3. Execute",
+            font=('Segoe UI', 10, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['tertiary_bg']
+        )
+        title_label.pack(side=tk.LEFT, padx=12, pady=6)
+
+        # Panel content
+        content = tk.Frame(panel_frame, bg=self.colors['secondary_bg'], padx=12, pady=12)
+        content.pack(fill=tk.X, expand=False)
+
+        # Generate SQL button
+        generate_btn = tk.Button(
+            content,
+            text="📝 Generate SQL Statement",
+            command=self._generate_date_sql,
+            bg=self.colors['info'],
+            fg='white',
+            font=('Segoe UI', 10, 'bold'),
+            relief=tk.FLAT,
+            padx=20,
+            pady=10,
+            cursor='hand2',
+            borderwidth=0
+        )
+        generate_btn.pack(fill=tk.X, pady=(0, 10))
+
+        # Preview button
+        preview_btn = tk.Button(
+            content,
+            text="👁 Preview Changes (10 samples)",
+            command=self._preview_date_changes,
+            bg=self.colors['warning'],
+            fg='white',
+            font=('Segoe UI', 10, 'bold'),
+            relief=tk.FLAT,
+            padx=20,
+            pady=10,
+            cursor='hand2',
+            borderwidth=0
+        )
+        preview_btn.pack(fill=tk.X, pady=(0, 10))
+
+        # Execute button
+        execute_btn = tk.Button(
+            content,
+            text="▶ Run Query (Update Dates)",
+            command=self._execute_date_update,
+            bg=self.colors['success'],
+            fg='white',
+            font=('Segoe UI', 11, 'bold'),
+            relief=tk.FLAT,
+            padx=20,
+            pady=12,
+            cursor='hand2',
+            borderwidth=0
+        )
+        execute_btn.pack(fill=tk.X, pady=(0, 30))  # Add bottom padding for scrollability
+
+    def _create_date_footer(self, parent):
+        """Create footer with status and logs for date randomizer."""
+        footer_frame = tk.Frame(parent, bg=self.colors['bg'])
+        footer_frame.pack(fill=tk.BOTH, expand=False, pady=(10, 0))
+
+        # Status label
+        self.date_status_label = tk.Label(
+            footer_frame,
+            text="● Ready - Connect to database to begin",
+            font=('Segoe UI', 9),
+            fg=self.colors['text_secondary'],
+            bg=self.colors['bg'],
+            anchor='w'
+        )
+        self.date_status_label.pack(fill=tk.X, pady=(0, 4))
+
+        # Log area
+        log_frame = tk.Frame(footer_frame, bg=self.colors['secondary_bg'], height=120)
+        log_frame.pack(fill=tk.X)
+        log_frame.pack_propagate(False)
+
+        tk.Label(
+            log_frame,
+            text="Activity Log",
+            font=('Segoe UI', 9, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['tertiary_bg']
+        ).pack(fill=tk.X, padx=0, pady=0)
+
+        self.date_log_text = scrolledtext.ScrolledText(
+            log_frame,
+            height=5,
+            font=('Courier New', 8),
+            bg=self.colors['secondary_bg'],
+            fg=self.colors['fg'],
+            relief=tk.FLAT,
+            wrap=tk.WORD,
+            borderwidth=0
+        )
+        self.date_log_text.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+
+    # Date Randomizer Event Handlers
+
+    def _test_date_connection(self):
+        """Test database connection and load tables for date randomizer."""
+        # Show critical warning before connecting
+        confirm = messagebox.askokcancel(
+            "⚠ CRITICAL WARNING - Development/Testing Only",
+            "THIS TOOL IS FOR DEVELOPMENT AND TESTING DATABASES ONLY!\n\n"
+            "By clicking OK, you confirm that:\n\n"
+            "✓ This is a development or testing database\n"
+            "✓ This is NOT a production database\n"
+            "✓ You understand this tool will randomly modify data\n"
+            "✓ You have backups if needed\n\n"
+            "⚠ NEVER USE THIS ON PRODUCTION DATABASES ⚠\n\n"
+            "Are you absolutely sure you want to connect?",
+            icon='warning'
+        )
+
+        if not confirm:
+            self._date_log("Connection cancelled by user", 'warning')
+            return
+
+        try:
+            self._date_log("Connecting to database...", 'info')
+
+            self.db_manager = DatabaseManager(
+                host=self.host_var.get(),
+                port=int(self.port_var.get()),
+                user=self.user_var.get(),
+                password=self.password_var.get(),
+                database=self.database_var.get() if self.database_var.get() else None
+            )
+
+            success, message = self.db_manager.test_connection()
+
+            if success:
+                self._date_log(f"✓ {message}", 'success')
+
+                # Initialize date randomizer
+                self.date_randomizer = DateRandomizer(
+                    host=self.host_var.get(),
+                    port=int(self.port_var.get()),
+                    user=self.user_var.get(),
+                    password=self.password_var.get(),
+                    database=self.database_var.get()
+                )
+
+                self._load_date_tables()
+            else:
+                self._date_log(f"✗ {message}", 'error')
+                messagebox.showerror("Connection Error", message)
+
+        except Exception as e:
+            self._date_log(f"✗ Connection error: {e}", 'error')
+            messagebox.showerror("Error", str(e))
+
+    def _load_date_tables(self):
+        """Load tables from database for date randomizer."""
+        try:
+            tables = self.db_manager.get_tables(self.database_var.get())
+
+            if tables:
+                self.date_table_combo['values'] = tables
+                self._date_log(f"Loaded {len(tables)} tables", 'info')
+            else:
+                self._date_log("No tables found in database", 'warning')
+
+        except Exception as e:
+            self._date_log(f"Error loading tables: {e}", 'error')
+
+    def _on_date_table_selected(self, event):
+        """Handle table selection for date randomizer."""
+        table = self.date_selected_table.get()
+
+        if table and self.date_randomizer:
+            self._date_log(f"Loading table: {table}", 'info')
+
+            # Get datetime columns
+            datetime_cols = self.date_randomizer.get_datetime_columns(table, self.database_var.get())
+
+            if datetime_cols:
+                # Store available date columns
+                self.date_available_columns = datetime_cols
+
+                # Populate date columns listbox
+                self.date_columns_listbox.delete(0, tk.END)
+                for col_info in datetime_cols:
+                    display_text = f"{col_info['name']} ({col_info['type']})"
+                    self.date_columns_listbox.insert(tk.END, display_text)
+
+                # Auto-select all date columns
+                for i in range(len(datetime_cols)):
+                    self.date_columns_listbox.selection_set(i)
+
+                self._date_log(f"Found {len(datetime_cols)} date/datetime columns", 'success')
+            else:
+                self._date_log("No date/datetime columns found in this table", 'warning')
+                messagebox.showwarning(
+                    "No Date Columns",
+                    "This table doesn't contain any DATE, DATETIME, or TIMESTAMP columns."
+                )
+
+            # Load row count
+            count = self.db_manager.get_row_count(table, None, self.database_var.get())
+            self.date_row_count_label.config(text=f"Total Rows: {count:,}")
+
+            # Load data grid
+            self._refresh_date_table_data()
+
+    def _refresh_date_table_data(self):
+        """Refresh the data grid with top 10 rows for date randomizer."""
+        table = self.date_selected_table.get()
+
+        if not table or not self.db_manager:
+            return
+
+        try:
+            self._date_log("Refreshing sample data...", 'info')
+
+            # Get top 10 rows
+            data = self.db_manager.get_sample_data(table, limit=10, database=self.database_var.get())
+
+            if data:
+                # Clear existing data
+                for item in self.date_data_tree.get_children():
+                    self.date_data_tree.delete(item)
+
+                # Configure columns
+                columns = list(data[0].keys())
+                self.date_data_tree['columns'] = columns
+                self.date_data_tree['show'] = 'headings'
+
+                # Configure column headings
+                for col in columns:
+                    self.date_data_tree.heading(col, text=col)
+                    # Set column width based on content
+                    max_width = max(len(col) * 8, 100)
+                    self.date_data_tree.column(col, width=max_width, minwidth=80)
+
+                # Insert data
+                for row in data:
+                    values = [str(row[col]) if row[col] is not None else '' for col in columns]
+                    self.date_data_tree.insert('', tk.END, values=values)
+
+                self._date_log(f"✓ Loaded {len(data)} rows", 'success')
+            else:
+                self._date_log("No data in table", 'warning')
+
+        except Exception as e:
+            self._date_log(f"Error loading data: {e}", 'error')
+
+    def _get_selected_date_columns(self) -> List[Dict[str, str]]:
+        """Get selected date columns from listbox."""
+        selected_indices = self.date_columns_listbox.curselection()
+        return [self.date_available_columns[i] for i in selected_indices]
+
+    def _set_date_preset(self, days_ago: int):
+        """Set date range based on preset."""
+        from datetime import datetime, timedelta
+
+        if days_ago == 0:  # This Year
+            end_date = datetime.now()
+            start_date = datetime(end_date.year, 1, 1)
+        else:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days_ago)
+
+        # Update dropdowns
+        self.date_start_year.set(start_date.year)
+        self.date_start_month.set(start_date.month)
+        self.date_start_day.set(start_date.day)
+
+        self.date_end_year.set(end_date.year)
+        self.date_end_month.set(end_date.month)
+        self.date_end_day.set(end_date.day)
+
+        self._update_date_range_preview()
+
+    def _update_date_range_preview(self):
+        """Update the date range preview label."""
+        try:
+            from datetime import datetime
+
+            start_date = datetime(
+                int(self.date_start_year.get()),
+                int(self.date_start_month.get()),
+                int(self.date_start_day.get())
+            )
+            end_date = datetime(
+                int(self.date_end_year.get()),
+                int(self.date_end_month.get()),
+                int(self.date_end_day.get())
+            )
+
+            days_diff = (end_date - start_date).days
+
+            preview_text = f"Date Range: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')} ({days_diff} days)"
+            self.date_range_preview.config(text=preview_text)
+        except:
+            self.date_range_preview.config(text="Date Range: Invalid dates")
+
+    def _generate_date_sql(self):
+        """Generate SQL UPDATE statement for date randomizer."""
+        if not self._validate_date_config():
+            return
+
+        try:
+            from datetime import datetime
+
+            table = self.date_selected_table.get()
+            date_cols = self._get_selected_date_columns()
+
+            start_date = datetime(
+                int(self.date_start_year.get()),
+                int(self.date_start_month.get()),
+                int(self.date_start_day.get())
+            )
+            end_date = datetime(
+                int(self.date_end_year.get()),
+                int(self.date_end_month.get()),
+                int(self.date_end_day.get())
+            )
+
+            # Build sample SQL
+            set_clauses = ", ".join([f"`{col['name']}` = '[RandomDate]'" for col in date_cols])
+
+            sql = f"""-- Generated UPDATE statement
+-- This will update dates in batches of 1000 rows with transaction safety
+
+UPDATE `{table}`
+SET {set_clauses}
+LIMIT 1000;  -- Batch size (repeats until all rows updated)
+
+-- Configuration:
+-- Start Date: {start_date.strftime('%Y-%m-%d')}
+-- End Date: {end_date.strftime('%Y-%m-%d')}
+-- Include Time: {'Yes' if self.date_include_time.get() else 'No'}
+-- Columns to update: {', '.join([col['name'] for col in date_cols])}
+--
+-- Click 'Preview Changes' to see sample before/after
+-- Click 'Run Query' to execute the update"""
+
+            # Update preview
+            self.date_sql_preview.config(state='normal')
+            self.date_sql_preview.delete(1.0, tk.END)
+            self.date_sql_preview.insert(1.0, sql)
+            self.date_sql_preview.config(state='disabled')
+
+            self._date_log("✓ SQL statement generated", 'success')
+
+        except Exception as e:
+            self._date_log(f"Error generating SQL: {e}", 'error')
+
+    def _preview_date_changes(self):
+        """Preview changes with actual sample data for date randomizer."""
+        if not self._validate_date_config():
+            return
+
+        try:
+            self._date_log("Generating preview...", 'info')
+
+            config = self._build_date_config()
+            preview = self.date_randomizer.preview_changes(config, limit=10)
+
+            # Show preview in a new window
+            self._show_date_preview_window(preview)
+
+            self._date_log(f"✓ Preview generated ({len(preview)} samples)", 'success')
+
+        except Exception as e:
+            error_details = str(e)
+            self._date_log(f"✗ Preview generation failed: {error_details}", 'error')
+
+            # Log full traceback for debugging
+            import traceback
+            tb = traceback.format_exc()
+            self._date_log(f"Traceback:\n{tb}", 'error')
+
+            messagebox.showerror("Preview Error", f"{error_details}\n\nCheck Activity Log for full details.")
+
+    def _show_date_preview_window(self, preview_data):
+        """Show preview in a popup window for date randomizer."""
+        preview_win = tk.Toplevel(self.root)
+        preview_win.title("Preview Changes - Dates")
+        preview_win.geometry("900x600")
+        preview_win.configure(bg=self.colors['bg'])
+
+        # Header
+        header = tk.Label(
+            preview_win,
+            text="Preview of Changes (10 samples)",
+            font=('Segoe UI', 14, 'bold'),
+            fg=self.colors['accent'],
+            bg=self.colors['bg']
+        )
+        header.pack(pady=15)
+
+        # Create frame with scrollbar
+        frame = tk.Frame(preview_win, bg=self.colors['bg'])
+        frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 20))
+
+        # Text widget
+        text = scrolledtext.ScrolledText(
+            frame,
+            font=('Courier New', 9),
+            bg=self.colors['secondary_bg'],
+            fg=self.colors['fg'],
+            wrap=tk.WORD
+        )
+        text.pack(fill=tk.BOTH, expand=True)
+
+        # Insert preview data
+        for i, row in enumerate(preview_data, 1):
+            text.insert(tk.END, f"Row {i}:\n", 'header')
+            for change in row['changes']:
+                text.insert(tk.END, f"  {change['column']}: ", 'label')
+                text.insert(tk.END, f"{change['old']}", 'old')
+                text.insert(tk.END, " → ", 'arrow')
+                text.insert(tk.END, f"{change['new']}\n", 'new')
+            text.insert(tk.END, "\n")
+
+        # Configure tags
+        text.tag_config('header', foreground=self.colors['accent'], font=('Courier New', 9, 'bold'))
+        text.tag_config('label', foreground=self.colors['text_secondary'])
+        text.tag_config('old', foreground=self.colors['error'])
+        text.tag_config('new', foreground=self.colors['success'])
+        text.tag_config('arrow', foreground=self.colors['warning'])
+
+        text.config(state='disabled')
+
+        # Close button
+        close_btn = tk.Button(
+            preview_win,
+            text="Close",
+            command=preview_win.destroy,
+            bg=self.colors['accent'],
+            fg='white',
+            font=('Segoe UI', 10, 'bold'),
+            relief=tk.FLAT,
+            padx=30,
+            pady=8,
+            cursor='hand2'
+        )
+        close_btn.pack(pady=(0, 15))
+
+    def _execute_date_update(self):
+        """Execute the date randomization update."""
+        if not self._validate_date_config():
+            return
+
+        from datetime import datetime
+
+        # Confirmation dialog
+        date_cols = self._get_selected_date_columns()
+        table = self.date_selected_table.get()
+
+        start_date = datetime(
+            int(self.date_start_year.get()),
+            int(self.date_start_month.get()),
+            int(self.date_start_day.get())
+        )
+        end_date = datetime(
+            int(self.date_end_year.get()),
+            int(self.date_end_month.get()),
+            int(self.date_end_day.get())
+        )
+
+        msg = f"""Are you sure you want to run this query?
+
+Table: {table}
+Columns: {', '.join([col['name'] for col in date_cols])}
+Start Date: {start_date.strftime('%B %d, %Y')}
+End Date: {end_date.strftime('%B %d, %Y')}
+Include Time: {'Yes' if self.date_include_time.get() else 'No'}
+
+This will modify your database.
+Transactions will be used (can rollback on error)."""
+
+        if not messagebox.askyesno("Confirm Query Execution", msg):
+            return
+
+        try:
+            self._date_log("Running query...", 'info')
+            self.date_status_label.config(text="● Running query... Please wait", fg=self.colors['warning'])
+            self.root.update()
+
+            config = self._build_date_config()
+            result = self.date_randomizer.execute_update(config, dry_run=False)
+
+            # Log all errors to activity log
+            if result['errors']:
+                self._date_log(f"⚠ {len(result['errors'])} error(s) occurred during execution:", 'warning')
+                for i, error in enumerate(result['errors'][:10], 1):  # Show first 10 errors
+                    self._date_log(f"  Error {i}: {error}", 'error')
+                if len(result['errors']) > 10:
+                    self._date_log(f"  ... and {len(result['errors']) - 10} more errors", 'error')
+
+            # Show results
+            success_msg = f"""Query Completed!
+
+Total Rows: {result['total_rows']}
+Updated: {result['updated_rows']}
+Skipped: {result['skipped_rows']}
+Errors: {len(result['errors'])}"""
+
+            if result['errors']:
+                success_msg += f"\n\nCheck Activity Log for error details."
+                success_msg += f"\nFirst error: {result['errors'][0]}"
+
+            self._date_log(f"✓ Query complete: {result['updated_rows']} rows updated, {result['skipped_rows']} skipped", 'success' if len(result['errors']) == 0 else 'warning')
+
+            if len(result['errors']) > 0:
+                messagebox.showwarning("Query Completed with Errors", success_msg)
+            else:
+                messagebox.showinfo("Query Complete", success_msg)
+
+            # Auto-refresh sample data
+            self._date_log("Auto-refreshing sample data...", 'info')
+            self._refresh_date_table_data()
+
+        except Exception as e:
+            error_details = str(e)
+            self._date_log(f"✗ Query failed: {error_details}", 'error')
+
+            # Log full traceback for debugging
+            import traceback
+            tb = traceback.format_exc()
+            self._date_log(f"Traceback:\n{tb}", 'error')
+
+            messagebox.showerror("Query Error", f"Query failed:\n\n{error_details}\n\nCheck Activity Log for full details.")
+        finally:
+            self.date_status_label.config(text="● Ready", fg=self.colors['text_secondary'])
+
+    def _validate_date_config(self) -> bool:
+        """Validate current configuration for date randomizer."""
+        if not self.db_manager:
+            messagebox.showerror("Error", "Please connect to database first")
+            return False
+
+        if not self.date_selected_table.get():
+            messagebox.showerror("Error", "Please select a table")
+            return False
+
+        if not self._get_selected_date_columns():
+            messagebox.showerror("Error", "Please select at least one date column")
+            return False
+
+        try:
+            from datetime import datetime
+
+            start_date = datetime(
+                int(self.date_start_year.get()),
+                int(self.date_start_month.get()),
+                int(self.date_start_day.get())
+            )
+            end_date = datetime(
+                int(self.date_end_year.get()),
+                int(self.date_end_month.get()),
+                int(self.date_end_day.get())
+            )
+
+            if start_date >= end_date:
+                messagebox.showerror("Error", "End date must be after start date")
+                return False
+
+        except ValueError as e:
+            messagebox.showerror("Error", f"Invalid date selected: {str(e)}")
+            return False
+
+        return True
+
+    def _build_date_config(self) -> Dict[str, Any]:
+        """Build configuration dictionary for date randomizer."""
+        from datetime import datetime
+
+        start_date = datetime(
+            int(self.date_start_year.get()),
+            int(self.date_start_month.get()),
+            int(self.date_start_day.get())
+        )
+        end_date = datetime(
+            int(self.date_end_year.get()),
+            int(self.date_end_month.get()),
+            int(self.date_end_day.get())
+        )
+
+        return {
+            'table': self.date_selected_table.get(),
+            'date_columns': self._get_selected_date_columns(),
+            'start_date': start_date,
+            'end_date': end_date,
+            'include_time': self.date_include_time.get(),
+            'batch_size': 1000,
+            'preserve_null': False,  # Update NULL values too
+            'primary_key': 'id'
+        }
+
+    def _date_log(self, message: str, level: str = 'info'):
+        """Log message to date randomizer console."""
+        colors = {
+            'info': self.colors['fg'],
+            'success': self.colors['success'],
+            'warning': self.colors['warning'],
+            'error': self.colors['error']
+        }
+
+        timestamp = __import__('datetime').datetime.now().strftime('%H:%M:%S')
+        self.date_log_text.insert(tk.END, f"[{timestamp}] {message}\n")
+        self.date_log_text.see(tk.END)
+
+        status_symbols = {
+            'info': '●',
+            'success': '✓',
+            'warning': '⚠',
+            'error': '✗'
+        }
+
+        self.date_status_label.config(
+            text=f"{status_symbols.get(level, '●')} {message}",
+            fg=colors.get(level, self.colors['fg'])
+        )
+
+    # Code Generator Methods
+
+    def _create_code_generator_ui(self):
+        """Create the code generator tool interface."""
+        # Main container
+        main_frame = tk.Frame(self.root, bg=self.colors['bg'], padx=15, pady=15)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Header with back button
+        self._create_header(main_frame, "Code/Serial Number Generator", show_back=True)
+
+        # Content area - 3 column layout
+        content_frame = tk.Frame(main_frame, bg=self.colors['bg'])
+        content_frame.pack(fill=tk.BOTH, expand=True, pady=15)
+
+        # Left column - Connection & Table
+        left_frame = tk.Frame(content_frame, bg=self.colors['bg'], width=300)
+        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 8))
+        left_frame.pack_propagate(False)
+
+        self._create_code_connection_panel(left_frame)
+        self._create_code_table_selection_panel(left_frame)
+
+        # Middle column - Data Grid & SQL Preview
+        middle_frame = tk.Frame(content_frame, bg=self.colors['bg'])
+        middle_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=8)
+
+        self._create_code_data_grid_panel(middle_frame)
+        self._create_code_sql_preview_panel(middle_frame)
+
+        # Right column - Configuration & Actions
+        right_frame = tk.Frame(content_frame, bg=self.colors['bg'], width=360)
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, padx=(8, 0))
+        right_frame.pack_propagate(False)
+
+        # Create scrollable frame for right column
+        code_right_canvas = tk.Canvas(right_frame, bg=self.colors['bg'], highlightthickness=0)
+        code_right_scrollbar = ttk.Scrollbar(right_frame, orient="vertical", command=code_right_canvas.yview)
+        code_right_scrollable = tk.Frame(code_right_canvas, bg=self.colors['bg'])
+
+        def update_code_scrollregion(e=None):
+            code_right_canvas.configure(scrollregion=code_right_canvas.bbox("all"))
+
+        code_right_scrollable.bind("<Configure>", update_code_scrollregion)
+
+        code_right_canvas.create_window((0, 0), window=code_right_scrollable, anchor="nw", width=340)
+        code_right_canvas.configure(yscrollcommand=code_right_scrollbar.set)
+
+        # Enable mousewheel scrolling
+        def on_code_mousewheel(event):
+            code_right_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+
+        code_right_canvas.bind_all("<MouseWheel>", on_code_mousewheel)
+
+        code_right_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        code_right_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self._create_code_column_selection_panel(code_right_scrollable)
+        self._create_code_config_panel(code_right_scrollable)
+        self._create_code_action_panel(code_right_scrollable)
+
+        # Footer - Status & Logs
+        self._create_code_footer(main_frame)
+
+    def _create_code_connection_panel(self, parent):
+        """Create database connection panel for code generator."""
+        content = self._create_panel(parent, "📊 Database Connection")
+
+        # Connection inputs (same as others)
+        fields = [
+            ("Host:", self.host_var, None),
+            ("Port:", self.port_var, None),
+            ("User:", self.user_var, None),
+            ("Password:", self.password_var, '*'),
+            ("Database:", self.database_var, None),
+        ]
+
+        for i, (label, var, show) in enumerate(fields):
+            self._create_input(content, label, var, i, show)
+
+        # Connect button
+        btn_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
+        btn_frame.grid(row=len(fields), column=0, columnspan=2, pady=(8, 0))
+
+        connect_btn = tk.Button(
+            btn_frame,
+            text="Connect & Load Tables",
+            command=self._test_code_connection,
+            bg=self.colors['accent'],
+            fg='white',
+            font=('Segoe UI', 9, 'bold'),
+            relief=tk.FLAT,
+            padx=15,
+            pady=6,
+            cursor='hand2',
+            borderwidth=0
+        )
+        connect_btn.pack()
+
+    def _create_code_table_selection_panel(self, parent):
+        """Create table selection panel for code generator."""
+        content = self._create_panel(parent, "📋 Table Selection")
+
+        # Table dropdown
+        tk.Label(
+            content,
+            text="Table:",
+            font=('Segoe UI', 9),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 4))
+
+        self.code_table_combo = ttk.Combobox(
+            content,
+            textvariable=self.code_selected_table,
+            state='readonly',
+            font=('Segoe UI', 9)
+        )
+        self.code_table_combo.pack(fill=tk.X, pady=(0, 8))
+        self.code_table_combo.bind('<<ComboboxSelected>>', self._on_code_table_selected)
+
+        # Refresh button
+        refresh_btn = tk.Button(
+            content,
+            text="🔄 Refresh Sample Data",
+            command=self._refresh_code_table_data,
+            bg=self.colors['tertiary_bg'],
+            fg=self.colors['fg'],
+            font=('Segoe UI', 9),
+            relief=tk.FLAT,
+            padx=10,
+            pady=5,
+            cursor='hand2',
+            borderwidth=0
+        )
+        refresh_btn.pack(fill=tk.X, pady=(0, 8))
+
+        # Row count
+        self.code_row_count_label = tk.Label(
+            content,
+            text="Total Rows: -",
+            font=('Segoe UI', 9),
+            fg=self.colors['text_secondary'],
+            bg=self.colors['secondary_bg'],
+            anchor='w'
+        )
+        self.code_row_count_label.pack(anchor='w')
+
+    def _create_code_data_grid_panel(self, parent):
+        """Create data grid panel for code generator."""
+        content = self._create_panel(parent, "📊 Sample Data (Top 10 Rows)", height=300)
+
+        # Create Treeview with scrollbars
+        tree_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Scrollbars
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical")
+        hsb = ttk.Scrollbar(tree_frame, orient="horizontal")
+
+        self.code_data_tree = ttk.Treeview(
+            tree_frame,
+            yscrollcommand=vsb.set,
+            xscrollcommand=hsb.set,
+            style="Custom.Treeview",
+            selectmode='browse'
+        )
+
+        vsb.config(command=self.code_data_tree.yview)
+        hsb.config(command=self.code_data_tree.xview)
+
+        # Grid layout
+        self.code_data_tree.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        hsb.grid(row=1, column=0, sticky='ew')
+
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+
+    def _create_code_sql_preview_panel(self, parent):
+        """Create SQL preview panel for code generator."""
+        content = self._create_panel(parent, "🔍 SQL Preview", height=150)
+
+        self.code_sql_preview = scrolledtext.ScrolledText(
+            content,
+            height=6,
+            font=('Courier New', 9),
+            bg=self.colors['tertiary_bg'],
+            fg=self.colors['fg'],
+            relief=tk.FLAT,
+            wrap=tk.WORD,
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground=self.colors['border']
+        )
+        self.code_sql_preview.pack(fill=tk.BOTH, expand=True)
+
+        # Insert placeholder
+        self.code_sql_preview.insert(1.0, "-- Click 'Generate SQL' to preview the UPDATE statement\n-- Configuration: Select columns and code format first")
+        self.code_sql_preview.config(state='disabled')
+
+    def _create_code_column_selection_panel(self, parent):
+        """Create column selection panel for code generator."""
+        panel_frame = tk.Frame(parent, bg=self.colors['secondary_bg'], relief=tk.FLAT)
+        panel_frame.pack(fill=tk.X, expand=False, pady=(0, 10))
+
+        # Panel header
+        header = tk.Frame(panel_frame, bg=self.colors['tertiary_bg'], height=32)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+
+        title_label = tk.Label(
+            header,
+            text="🎯 1. Column Selection",
+            font=('Segoe UI', 10, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['tertiary_bg']
+        )
+        title_label.pack(side=tk.LEFT, padx=12, pady=6)
+
+        # Panel content
+        content = tk.Frame(panel_frame, bg=self.colors['secondary_bg'], padx=12, pady=12)
+        content.pack(fill=tk.X, expand=False)
+
+        # Code columns
+        tk.Label(
+            content,
+            text="Code/Serial Columns (select multiple):",
+            font=('Segoe UI', 9, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 4))
+
+        # Warning label
+        tk.Label(
+            content,
+            text="⚠️ Foreign Key columns will be blocked",
+            font=('Segoe UI', 8, 'italic'),
+            fg=self.colors['error'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 4))
+
+        # Listbox for multiple selection
+        listbox_frame = tk.Frame(content, bg=self.colors['secondary_bg'], height=120)
+        listbox_frame.pack(fill=tk.X, pady=(0, 8))
+        listbox_frame.pack_propagate(False)
+
+        scrollbar = ttk.Scrollbar(listbox_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.code_columns_listbox = tk.Listbox(
+            listbox_frame,
+            listvariable=self.code_columns_listvar,
+            selectmode=tk.MULTIPLE,
+            font=('Segoe UI', 9),
+            bg=self.colors['tertiary_bg'],
+            fg=self.colors['fg'],
+            relief=tk.FLAT,
+            yscrollcommand=scrollbar.set,
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground=self.colors['border'],
+            selectbackground=self.colors['accent']
+        )
+        self.code_columns_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        scrollbar.config(command=self.code_columns_listbox.yview)
+
+    def _create_code_config_panel(self, parent):
+        """Create code configuration panel."""
+        panel_frame = tk.Frame(parent, bg=self.colors['secondary_bg'], relief=tk.FLAT)
+        panel_frame.pack(fill=tk.X, expand=False, pady=(0, 10))
+
+        # Panel header
+        header = tk.Frame(panel_frame, bg=self.colors['tertiary_bg'], height=32)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+
+        title_label = tk.Label(
+            header,
+            text="⚙ 2. Code Format",
+            font=('Segoe UI', 10, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['tertiary_bg']
+        )
+        title_label.pack(side=tk.LEFT, padx=12, pady=6)
+
+        # Panel content
+        content = tk.Frame(panel_frame, bg=self.colors['secondary_bg'], padx=12, pady=12)
+        content.pack(fill=tk.X, expand=False)
+
+        # Code Type
+        tk.Label(
+            content,
+            text="Code Type:",
+            font=('Segoe UI', 9, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 6))
+
+        type_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
+        type_frame.pack(fill=tk.X, pady=(0, 15))
+
+        for code_type in [('Letters Only', 'letters'), ('Numbers Only', 'numbers'), ('Mixed', 'mixed')]:
+            rb = tk.Radiobutton(
+                type_frame,
+                text=code_type[0],
+                variable=self.code_type,
+                value=code_type[1],
+                font=('Segoe UI', 9),
+                fg=self.colors['fg'],
+                bg=self.colors['secondary_bg'],
+                selectcolor=self.colors['tertiary_bg'],
+                activebackground=self.colors['secondary_bg']
+            )
+            rb.pack(side=tk.LEFT, padx=(0, 15))
+
+        # Code Length
+        tk.Label(
+            content,
+            text="Code Length (minimum 5):",
+            font=('Segoe UI', 9, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 4))
+
+        length_entry = tk.Entry(
+            content,
+            textvariable=self.code_length,
+            font=('Segoe UI', 9),
+            bg=self.colors['tertiary_bg'],
+            fg=self.colors['fg'],
+            relief=tk.FLAT,
+            bd=1,
+            width=10
+        )
+        length_entry.pack(anchor='w', pady=(0, 15))
+
+        # Prefix
+        tk.Label(
+            content,
+            text="Prefix (optional, max 3 chars):",
+            font=('Segoe UI', 9, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(0, 4))
+
+        prefix_entry = tk.Entry(
+            content,
+            textvariable=self.code_prefix,
+            font=('Segoe UI', 9),
+            bg=self.colors['tertiary_bg'],
+            fg=self.colors['fg'],
+            relief=tk.FLAT,
+            bd=1,
+            width=10
+        )
+        prefix_entry.pack(anchor='w', pady=(0, 8))
+
+        # Prefix validation
+        def validate_prefix(*args):
+            prefix = self.code_prefix.get()
+            if len(prefix) > 3:
+                self.code_prefix.set(prefix[:3])
+            self._update_code_example()
+
+        self.code_prefix.trace('w', validate_prefix)
+
+        # Example
+        self.code_example_label = tk.Label(
+            content,
+            text="Example: ABC12345",
+            font=('Segoe UI', 8, 'italic'),
+            fg=self.colors['text_secondary'],
+            bg=self.colors['secondary_bg'],
+            anchor='w'
+        )
+        self.code_example_label.pack(anchor='w')
+
+    def _create_code_action_panel(self, parent):
+        """Create action buttons panel for code generator."""
+        panel_frame = tk.Frame(parent, bg=self.colors['secondary_bg'], relief=tk.FLAT)
+        panel_frame.pack(fill=tk.X, expand=False, pady=(0, 10))
+
+        # Panel header
+        header = tk.Frame(panel_frame, bg=self.colors['tertiary_bg'], height=32)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+
+        title_label = tk.Label(
+            header,
+            text="🚀 3. Execute",
+            font=('Segoe UI', 10, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['tertiary_bg']
+        )
+        title_label.pack(side=tk.LEFT, padx=12, pady=6)
+
+        # Panel content
+        content = tk.Frame(panel_frame, bg=self.colors['secondary_bg'], padx=12, pady=12)
+        content.pack(fill=tk.X, expand=False)
+
+        # Generate SQL button
+        generate_btn = tk.Button(
+            content,
+            text="📝 Generate SQL Statement",
+            command=self._generate_code_sql,
+            bg=self.colors['info'],
+            fg='white',
+            font=('Segoe UI', 10, 'bold'),
+            relief=tk.FLAT,
+            padx=20,
+            pady=10,
+            cursor='hand2',
+            borderwidth=0
+        )
+        generate_btn.pack(fill=tk.X, pady=(0, 10))
+
+        # Preview button
+        preview_btn = tk.Button(
+            content,
+            text="👁 Preview Changes (10 samples)",
+            command=self._preview_code_changes,
+            bg=self.colors['warning'],
+            fg='white',
+            font=('Segoe UI', 10, 'bold'),
+            relief=tk.FLAT,
+            padx=20,
+            pady=10,
+            cursor='hand2',
+            borderwidth=0
+        )
+        preview_btn.pack(fill=tk.X, pady=(0, 10))
+
+        # Execute button
+        execute_btn = tk.Button(
+            content,
+            text="▶ Run Query (Update Codes)",
+            command=self._execute_code_update,
+            bg=self.colors['success'],
+            fg='white',
+            font=('Segoe UI', 11, 'bold'),
+            relief=tk.FLAT,
+            padx=20,
+            pady=12,
+            cursor='hand2',
+            borderwidth=0
+        )
+        execute_btn.pack(fill=tk.X, pady=(0, 30))  # Add bottom padding for scrollability
+
+    def _create_code_footer(self, parent):
+        """Create footer with status and logs for code generator."""
+        footer_frame = tk.Frame(parent, bg=self.colors['bg'])
+        footer_frame.pack(fill=tk.BOTH, expand=False, pady=(10, 0))
+
+        # Status label
+        self.code_status_label = tk.Label(
+            footer_frame,
+            text="● Ready - Connect to database to begin",
+            font=('Segoe UI', 9),
+            fg=self.colors['text_secondary'],
+            bg=self.colors['bg'],
+            anchor='w'
+        )
+        self.code_status_label.pack(fill=tk.X, pady=(0, 4))
+
+        # Log area
+        log_frame = tk.Frame(footer_frame, bg=self.colors['secondary_bg'], height=120)
+        log_frame.pack(fill=tk.X)
+        log_frame.pack_propagate(False)
+
+        tk.Label(
+            log_frame,
+            text="Activity Log",
+            font=('Segoe UI', 9, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['tertiary_bg']
+        ).pack(fill=tk.X, padx=0, pady=0)
+
+        self.code_log_text = scrolledtext.ScrolledText(
+            log_frame,
+            height=5,
+            font=('Courier New', 8),
+            bg=self.colors['secondary_bg'],
+            fg=self.colors['fg'],
+            relief=tk.FLAT,
+            wrap=tk.WORD,
+            borderwidth=0
+        )
+        self.code_log_text.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+
+    # Code Generator Event Handlers
+
+    def _test_code_connection(self):
+        """Test database connection and load tables for code generator."""
+        # Show critical warning before connecting
+        confirm = messagebox.askokcancel(
+            "⚠ CRITICAL WARNING - Development/Testing Only",
+            "THIS TOOL IS FOR DEVELOPMENT AND TESTING DATABASES ONLY!\n\n"
+            "By clicking OK, you confirm that:\n\n"
+            "✓ This is a development or testing database\n"
+            "✓ This is NOT a production database\n"
+            "✓ You understand this tool will randomly modify data\n"
+            "✓ You have backups if needed\n\n"
+            "⚠ NEVER USE THIS ON PRODUCTION DATABASES ⚠\n\n"
+            "Are you absolutely sure you want to connect?",
+            icon='warning'
+        )
+
+        if not confirm:
+            self._code_log("Connection cancelled by user", 'warning')
+            return
+
+        try:
+            self._code_log("Connecting to database...", 'info')
+
+            self.db_manager = DatabaseManager(
+                host=self.host_var.get(),
+                port=int(self.port_var.get()),
+                user=self.user_var.get(),
+                password=self.password_var.get(),
+                database=self.database_var.get() if self.database_var.get() else None
+            )
+
+            success, message = self.db_manager.test_connection()
+
+            if success:
+                self._code_log(f"✓ {message}", 'success')
+
+                # Initialize code generator
+                self.code_generator = CodeGenerator(
+                    host=self.host_var.get(),
+                    port=int(self.port_var.get()),
+                    user=self.user_var.get(),
+                    password=self.password_var.get(),
+                    database=self.database_var.get()
+                )
+
+                self._load_code_tables()
+            else:
+                self._code_log(f"✗ {message}", 'error')
+                messagebox.showerror("Connection Error", message)
+
+        except Exception as e:
+            self._code_log(f"✗ Connection error: {e}", 'error')
+            messagebox.showerror("Error", str(e))
+
+    def _load_code_tables(self):
+        """Load tables from database for code generator."""
+        try:
+            tables = self.db_manager.get_tables(self.database_var.get())
+
+            if tables:
+                self.code_table_combo['values'] = tables
+                self._code_log(f"Loaded {len(tables)} tables", 'info')
+            else:
+                self._code_log("No tables found in database", 'warning')
+
+        except Exception as e:
+            self._code_log(f"Error loading tables: {e}", 'error')
+
+    def _on_code_table_selected(self, event):
+        """Handle table selection for code generator."""
+        table = self.code_selected_table.get()
+
+        if table and self.code_generator:
+            self._code_log(f"Loading table: {table}", 'info')
+
+            # Get schema
+            schema = self.db_manager.get_table_schema(table, self.database_var.get())
+
+            if schema:
+                # Store available columns (text/varchar columns for codes)
+                text_columns = []
+                for col in schema:
+                    col_type = col['Type'].lower()
+                    if any(t in col_type for t in ['varchar', 'char', 'text']):
+                        text_columns.append(col['Field'])
+
+                self.code_available_columns = text_columns
+
+                # Check for foreign keys
+                self._code_log("Checking columns for foreign key constraints...", 'info')
+                fk_results = self.code_generator.check_columns_for_fk(
+                    table, text_columns, self.database_var.get()
+                )
+
+                # Populate columns listbox
+                self.code_columns_listbox.delete(0, tk.END)
+                for col in text_columns:
+                    fk_info = fk_results.get(col, {})
+                    if fk_info.get('is_fk'):
+                        # Mark FK columns
+                        display_text = f"{col} [FK - BLOCKED]"
+                        self.code_columns_listbox.insert(tk.END, display_text)
+                        # Disable this item
+                        self.code_columns_listbox.itemconfig(tk.END, fg='#999999')
+                    else:
+                        self.code_columns_listbox.insert(tk.END, col)
+
+                self._code_log(f"Found {len(text_columns)} text columns", 'success')
+
+                # Check if any FKs were found
+                fk_count = sum(1 for fk in fk_results.values() if fk.get('is_fk'))
+                if fk_count > 0:
+                    self._code_log(f"⚠ {fk_count} foreign key column(s) blocked", 'warning')
+
+            # Load row count
+            count = self.db_manager.get_row_count(table, None, self.database_var.get())
+            self.code_row_count_label.config(text=f"Total Rows: {count:,}")
+
+            # Load data grid
+            self._refresh_code_table_data()
+
+    def _refresh_code_table_data(self):
+        """Refresh the data grid with top 10 rows for code generator."""
+        table = self.code_selected_table.get()
+
+        if not table or not self.db_manager:
+            return
+
+        try:
+            self._code_log("Refreshing sample data...", 'info')
+
+            # Get top 10 rows
+            data = self.db_manager.get_sample_data(table, limit=10, database=self.database_var.get())
+
+            if data:
+                # Clear existing data
+                for item in self.code_data_tree.get_children():
+                    self.code_data_tree.delete(item)
+
+                # Configure columns
+                columns = list(data[0].keys())
+                self.code_data_tree['columns'] = columns
+                self.code_data_tree['show'] = 'headings'
+
+                # Configure column headings
+                for col in columns:
+                    self.code_data_tree.heading(col, text=col)
+                    # Set column width based on content
+                    max_width = max(len(col) * 8, 100)
+                    self.code_data_tree.column(col, width=max_width, minwidth=80)
+
+                # Insert data
+                for row in data:
+                    values = [str(row[col]) if row[col] is not None else '' for col in columns]
+                    self.code_data_tree.insert('', tk.END, values=values)
+
+                self._code_log(f"✓ Loaded {len(data)} rows", 'success')
+            else:
+                self._code_log("No data in table", 'warning')
+
+        except Exception as e:
+            self._code_log(f"Error loading data: {e}", 'error')
+
+    def _get_selected_code_columns(self) -> List[str]:
+        """Get selected code columns from listbox, excluding FK columns."""
+        selected_indices = self.code_columns_listbox.curselection()
+        selected_cols = []
+
+        for i in selected_indices:
+            col_text = self.code_columns_listbox.get(i)
+            # Check if it's a FK column
+            if '[FK - BLOCKED]' in col_text:
+                continue  # Skip FK columns
+            selected_cols.append(col_text)
+
+        return selected_cols
+
+    def _update_code_example(self):
+        """Update the code example label."""
+        try:
+            prefix = self.code_prefix.get().upper()
+            length = int(self.code_length.get()) if self.code_length.get() else 8
+            code_type = self.code_type.get()
+
+            # Generate example
+            if code_type == 'letters':
+                charset = 'ABCDEFGH'
+            elif code_type == 'numbers':
+                charset = '12345678'
+            else:
+                charset = 'ABC12345'
+
+            remaining = length - len(prefix)
+            if remaining < 1:
+                remaining = 1
+
+            example = prefix + charset[:remaining]
+            self.code_example_label.config(text=f"Example: {example}")
+        except:
+            self.code_example_label.config(text="Example: ABC12345")
+
+    def _generate_code_sql(self):
+        """Generate SQL UPDATE statement for code generator."""
+        if not self._validate_code_config():
+            return
+
+        try:
+            table = self.code_selected_table.get()
+            code_cols = self._get_selected_code_columns()
+            code_type = self.code_type.get()
+            code_length = self.code_length.get()
+            prefix = self.code_prefix.get().upper()
+
+            # Build sample SQL
+            set_clauses = ", ".join([f"`{col}` = '[RandomCode]'" for col in code_cols])
+
+            type_desc = {
+                'letters': 'Letters Only (A-Z)',
+                'numbers': 'Numbers Only (0-9)',
+                'mixed': 'Mixed (A-Z, 0-9)'
+            }
+
+            sql = f"""-- Generated UPDATE statement
+-- This will update codes in batches of 1000 rows with transaction safety
+
+UPDATE `{table}`
+SET {set_clauses}
+LIMIT 1000;  -- Batch size (repeats until all rows updated)
+
+-- Configuration:
+-- Code Type: {type_desc[code_type]}
+-- Code Length: {code_length} characters
+-- Prefix: {prefix if prefix else 'None'}
+-- Columns to update: {', '.join(code_cols)}
+--
+-- Example: {prefix}{code_type.upper()[:5]}{('12345' if code_type != 'letters' else 'ABCDE')[:int(code_length)-len(prefix)]}
+--
+-- Click 'Preview Changes' to see sample before/after
+-- Click 'Run Query' to execute the update"""
+
+            # Update preview
+            self.code_sql_preview.config(state='normal')
+            self.code_sql_preview.delete(1.0, tk.END)
+            self.code_sql_preview.insert(1.0, sql)
+            self.code_sql_preview.config(state='disabled')
+
+            self._code_log("✓ SQL statement generated", 'success')
+
+        except Exception as e:
+            self._code_log(f"Error generating SQL: {e}", 'error')
+
+    def _preview_code_changes(self):
+        """Preview changes with actual sample data for code generator."""
+        if not self._validate_code_config():
+            return
+
+        try:
+            self._code_log("Generating preview...", 'info')
+
+            config = self._build_code_config()
+            preview = self.code_generator.preview_changes(config, limit=10)
+
+            # Show preview in a new window
+            self._show_code_preview_window(preview)
+
+            self._code_log(f"✓ Preview generated ({len(preview)} samples)", 'success')
+
+        except Exception as e:
+            error_details = str(e)
+            self._code_log(f"✗ Preview generation failed: {error_details}", 'error')
+
+            # Log full traceback for debugging
+            import traceback
+            tb = traceback.format_exc()
+            self._code_log(f"Traceback:\n{tb}", 'error')
+
+            messagebox.showerror("Preview Error", f"{error_details}\n\nCheck Activity Log for full details.")
+
+    def _show_code_preview_window(self, preview_data):
+        """Show preview in a popup window for code generator."""
+        preview_win = tk.Toplevel(self.root)
+        preview_win.title("Preview Changes - Codes")
+        preview_win.geometry("900x600")
+        preview_win.configure(bg=self.colors['bg'])
+
+        # Header
+        header = tk.Label(
+            preview_win,
+            text="Preview of Changes (10 samples)",
+            font=('Segoe UI', 14, 'bold'),
+            fg=self.colors['accent'],
+            bg=self.colors['bg']
+        )
+        header.pack(pady=15)
+
+        # Create frame with scrollbar
+        frame = tk.Frame(preview_win, bg=self.colors['bg'])
+        frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 20))
+
+        # Text widget
+        text = scrolledtext.ScrolledText(
+            frame,
+            font=('Courier New', 9),
+            bg=self.colors['secondary_bg'],
+            fg=self.colors['fg'],
+            wrap=tk.WORD
+        )
+        text.pack(fill=tk.BOTH, expand=True)
+
+        # Insert preview data
+        for i, row in enumerate(preview_data, 1):
+            text.insert(tk.END, f"Row {i}:\n", 'header')
+            for change in row['changes']:
+                text.insert(tk.END, f"  {change['column']}: ", 'label')
+                text.insert(tk.END, f"{change['old']}", 'old')
+                text.insert(tk.END, " → ", 'arrow')
+                text.insert(tk.END, f"{change['new']}\n", 'new')
+            text.insert(tk.END, "\n")
+
+        # Configure tags
+        text.tag_config('header', foreground=self.colors['accent'], font=('Courier New', 9, 'bold'))
+        text.tag_config('label', foreground=self.colors['text_secondary'])
+        text.tag_config('old', foreground=self.colors['error'])
+        text.tag_config('new', foreground=self.colors['success'])
+        text.tag_config('arrow', foreground=self.colors['warning'])
+
+        text.config(state='disabled')
+
+        # Close button
+        close_btn = tk.Button(
+            preview_win,
+            text="Close",
+            command=preview_win.destroy,
+            bg=self.colors['accent'],
+            fg='white',
+            font=('Segoe UI', 10, 'bold'),
+            relief=tk.FLAT,
+            padx=30,
+            pady=8,
+            cursor='hand2'
+        )
+        close_btn.pack(pady=(0, 15))
+
+    def _execute_code_update(self):
+        """Execute the code generation update."""
+        if not self._validate_code_config():
+            return
+
+        # Confirmation dialog
+        code_cols = self._get_selected_code_columns()
+        table = self.code_selected_table.get()
+        code_type = self.code_type.get()
+        code_length = self.code_length.get()
+        prefix = self.code_prefix.get().upper()
+
+        type_desc = {
+            'letters': 'Letters Only',
+            'numbers': 'Numbers Only',
+            'mixed': 'Mixed (Letters + Numbers)'
+        }
+
+        msg = f"""Are you sure you want to run this query?
+
+Table: {table}
+Columns: {', '.join(code_cols)}
+Code Type: {type_desc[code_type]}
+Code Length: {code_length}
+Prefix: {prefix if prefix else 'None'}
+
+This will modify your database.
+Transactions will be used (can rollback on error)."""
+
+        if not messagebox.askyesno("Confirm Query Execution", msg):
+            return
+
+        try:
+            self._code_log("Running query...", 'info')
+            self.code_status_label.config(text="● Running query... Please wait", fg=self.colors['warning'])
+            self.root.update()
+
+            config = self._build_code_config()
+            result = self.code_generator.execute_update(config, dry_run=False)
+
+            # Log all errors to activity log
+            if result['errors']:
+                self._code_log(f"⚠ {len(result['errors'])} error(s) occurred during execution:", 'warning')
+                for i, error in enumerate(result['errors'][:10], 1):  # Show first 10 errors
+                    self._code_log(f"  Error {i}: {error}", 'error')
+                if len(result['errors']) > 10:
+                    self._code_log(f"  ... and {len(result['errors']) - 10} more errors", 'error')
+
+            # Show results
+            success_msg = f"""Query Completed!
+
+Total Rows: {result['total_rows']}
+Updated: {result['updated_rows']}
+Skipped: {result['skipped_rows']}
+Errors: {len(result['errors'])}"""
+
+            if result['errors']:
+                success_msg += f"\n\nCheck Activity Log for error details."
+                success_msg += f"\nFirst error: {result['errors'][0]}"
+
+            self._code_log(f"✓ Query complete: {result['updated_rows']} rows updated, {result['skipped_rows']} skipped", 'success' if len(result['errors']) == 0 else 'warning')
+
+            if len(result['errors']) > 0:
+                messagebox.showwarning("Query Completed with Errors", success_msg)
+            else:
+                messagebox.showinfo("Query Complete", success_msg)
+
+            # Auto-refresh sample data
+            self._code_log("Auto-refreshing sample data...", 'info')
+            self._refresh_code_table_data()
+
+        except Exception as e:
+            error_details = str(e)
+            self._code_log(f"✗ Query failed: {error_details}", 'error')
+
+            # Log full traceback for debugging
+            import traceback
+            tb = traceback.format_exc()
+            self._code_log(f"Traceback:\n{tb}", 'error')
+
+            messagebox.showerror("Query Error", f"Query failed:\n\n{error_details}\n\nCheck Activity Log for full details.")
+        finally:
+            self.code_status_label.config(text="● Ready", fg=self.colors['text_secondary'])
+
+    def _validate_code_config(self) -> bool:
+        """Validate current configuration for code generator."""
+        if not self.db_manager:
+            messagebox.showerror("Error", "Please connect to database first")
+            return False
+
+        if not self.code_selected_table.get():
+            messagebox.showerror("Error", "Please select a table")
+            return False
+
+        selected_cols = self._get_selected_code_columns()
+        if not selected_cols:
+            messagebox.showerror("Error", "Please select at least one column (Foreign Key columns are blocked)")
+            return False
+
+        # Check if any selected columns are FKs
+        for i in self.code_columns_listbox.curselection():
+            col_text = self.code_columns_listbox.get(i)
+            if '[FK - BLOCKED]' in col_text:
+                messagebox.showerror(
+                    "Foreign Key Column Blocked",
+                    "You cannot generate codes for Foreign Key columns!\n\n"
+                    "This would break referential integrity in your database.\n\n"
+                    "FK columns are marked with '[FK - BLOCKED]'"
+                )
+                return False
+
+        try:
+            length = int(self.code_length.get())
+            if length < 5:
+                messagebox.showerror("Error", "Code length must be at least 5 characters")
+                return False
+        except ValueError:
+            messagebox.showerror("Error", "Please enter a valid number for code length")
+            return False
+
+        prefix = self.code_prefix.get()
+        if len(prefix) > 3:
+            messagebox.showerror("Error", "Prefix cannot be longer than 3 characters")
+            return False
+
+        return True
+
+    def _build_code_config(self) -> Dict[str, Any]:
+        """Build configuration dictionary for code generator."""
+        return {
+            'table': self.code_selected_table.get(),
+            'code_columns': self._get_selected_code_columns(),
+            'code_type': self.code_type.get(),
+            'code_length': int(self.code_length.get()),
+            'prefix': self.code_prefix.get().upper(),
+            'batch_size': 1000,
+            'preserve_null': False,  # Update NULL values too
+            'primary_key': 'id',
+            'ensure_unique': True
+        }
+
+    def _code_log(self, message: str, level: str = 'info'):
+        """Log message to code generator console."""
+        colors = {
+            'info': self.colors['fg'],
+            'success': self.colors['success'],
+            'warning': self.colors['warning'],
+            'error': self.colors['error']
+        }
+
+        timestamp = __import__('datetime').datetime.now().strftime('%H:%M:%S')
+        self.code_log_text.insert(tk.END, f"[{timestamp}] {message}\n")
+        self.code_log_text.see(tk.END)
+
+        status_symbols = {
+            'info': '●',
+            'success': '✓',
+            'warning': '⚠',
+            'error': '✗'
+        }
+
+        self.code_status_label.config(
             text=f"{status_symbols.get(level, '●')} {message}",
             fg=colors.get(level, self.colors['fg'])
         )
