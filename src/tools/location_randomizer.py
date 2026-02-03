@@ -9,6 +9,11 @@ from typing import List, Dict, Any, Tuple, Optional
 import logging
 import os
 
+try:
+    import requests
+except ImportError:
+    requests = None
+
 from ..core.database_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -73,9 +78,13 @@ class LocationRandomizer:
         Returns:
             Dictionary with min_lat, max_lat, min_lng, max_lng
         """
-        try:
-            import requests
+        if requests is None:
+            raise ImportError(
+                "The 'requests' library is required for Location Randomizer. "
+                "Please install it with: pip install requests"
+            )
 
+        try:
             if not api_key or not api_key.strip():
                 raise ValueError("DeepSeek API key is required")
 

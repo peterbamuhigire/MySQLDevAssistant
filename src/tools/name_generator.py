@@ -120,12 +120,23 @@ class NameRandomizer:
         else:
             names_df = self.female_names
 
-        # Filter by groups if specified
-        if groups and 'all' not in groups:
+        # Check if dataframe loaded properly
+        if names_df is None or names_df.empty:
+            logger.error(f"Names dataframe is empty or None for gender={gender}. Check if CSV files are loaded.")
+            return f"Unknown_{gender}"
+
+        # Normalize groups to lowercase for case-insensitive comparison
+        groups_lower = [g.lower() for g in groups] if groups else []
+
+        # Filter by groups if specified (skip if 'all' is selected)
+        if groups_lower and 'all' not in groups_lower:
+            logger.debug(f"Filtering names by groups: {groups}")
             names_df = names_df[names_df['group'].isin(groups)]
+        else:
+            logger.debug(f"Using all available names (groups={groups})")
 
         if names_df.empty:
-            logger.warning(f"No names available for gender={gender}, groups={groups}")
+            logger.warning(f"No names available after filtering: gender={gender}, groups={groups}, available_groups={self.name_groups.get(gender, [])}")
             return f"Unknown_{gender}"
 
         if full_name:
@@ -140,6 +151,37 @@ class NameRandomizer:
             else:  # proportional
                 # Proportional to group size
                 return random.choice(names_df['name'].tolist())
+
+    def generate_email(self, name: str, full_name: bool = False) -> str:
+        """
+        Generate an email address based on a name.
+
+        Args:
+            name: The name to base the email on (can be full name or single name)
+            full_name: Whether this is a full name (FirstName LastName)
+
+        Returns:
+            Generated email address
+        """
+        domains = ['email.com', 'letters.net', 'communication.co.uk']
+        random_number = random.randint(100, 999)
+
+        # Convert name to lowercase and handle spaces
+        name_lower = name.lower().strip()
+
+        if full_name and ' ' in name_lower:
+            # Format: firstname.lastname###@domain
+            parts = name_lower.split()
+            if len(parts) >= 2:
+                email_prefix = f"{parts[0]}.{parts[-1]}{random_number}"
+            else:
+                email_prefix = f"{name_lower.replace(' ', '.')}{random_number}"
+        else:
+            # Format: name###@domain (single name or no space found)
+            email_prefix = f"{name_lower.replace(' ', '.')}{random_number}"
+
+        domain = random.choice(domains)
+        return f"{email_prefix}@{domain}"
 
     def preview_changes(self, config: Dict[str, Any], limit: int = 10) -> List[Dict[str, Any]]:
         """
@@ -212,21 +254,62 @@ class NameRandomizer:
                         'changes': []
                     }
 
-                    # Generate new names for each name column
-                    for name_col in name_columns:
-                        old_name = row.get(name_col)
-                        new_name = self.get_random_name(
-                            gender=gender,
-                            groups=name_groups,
-                            distribution=config.get('distribution', 'proportional'),
-                            full_name=full_name_mode
-                        )
+                    generated_name = None
+                    update_names = config.get('update_names', True)
+                    update_emails = config.get('update_emails', True)
 
-                        preview_row['updated'][name_col] = new_name
+                    # Generate names if name columns are specified AND we should update them
+                    if name_columns and update_names:
+                        for name_col in name_columns:
+                            old_name = row.get(name_col)
+                            new_name = self.get_random_name(
+                                gender=gender,
+                                groups=name_groups,
+                                distribution=config.get('distribution', 'proportional'),
+                                full_name=full_name_mode
+                            )
+
+                            preview_row['updated'][name_col] = new_name
+                            preview_row['changes'].append({
+                                'column': name_col,
+                                'old': old_name,
+                                'new': new_name
+                            })
+                            # Store first generated name for email generation
+                            if generated_name is None:
+                                generated_name = new_name
+
+                    # Generate email if email column is specified AND we should update it
+                    email_column = config.get('email_column')
+                    if email_column and update_emails:
+                        old_email = row.get(email_column)
+                        # If we generated new names, use those for email
+                        if generated_name:
+                            new_email = self.generate_email(generated_name, full_name_mode)
+                        else:
+                            # Otherwise, read existing names from the row
+                            if name_columns:
+                                # Combine all selected name columns
+                                name_parts = []
+                                for name_col in name_columns:
+                                    name_val = row.get(name_col)
+                                    if name_val:
+                                        name_parts.append(str(name_val))
+
+                                if name_parts:
+                                    existing_name = ' '.join(name_parts) if len(name_parts) > 1 else name_parts[0]
+                                else:
+                                    existing_name = "user"
+                            else:
+                                existing_name = "user"
+
+                            new_email = self.generate_email(existing_name, full_name_mode)
+
+                        preview_row['updated'][email_column] = new_email
                         preview_row['changes'].append({
-                            'column': name_col,
-                            'old': old_name,
-                            'new': new_name
+                            'column': email_column,
+                            'old': old_email,
+                            'new': new_email
                         })
 
                     sample_data.append(preview_row)
@@ -352,19 +435,35 @@ class NameRandomizer:
 
                             # Build UPDATE query
                             update_parts = []
-                            for name_col in name_columns:
+                            generated_name = None
+                            update_names = config.get('update_names', True)
+                            update_emails = config.get('update_emails', True)
+
+                            # Generate names if name columns specified AND update_names is True
+                            if name_columns and update_names:
+                                for name_col in name_columns:
+                                    # Check if should preserve NULL
+                                    if preserve_null and row.get(name_col) is None:
+                                        continue
+
+                                    new_name = self.get_random_name(
+                                        gender=gender,
+                                        groups=name_groups,
+                                        distribution=config.get('distribution', 'proportional'),
+                                        full_name=full_name_mode
+                                    )
+
+                                    update_parts.append(f"`{name_col}` = %s")
+                                    # Store first generated name for email
+                                    if generated_name is None:
+                                        generated_name = new_name
+
+                            # Generate email if email column specified AND update_emails is True
+                            email_column = config.get('email_column')
+                            if email_column and update_emails:
                                 # Check if should preserve NULL
-                                if preserve_null and row.get(name_col) is None:
-                                    continue
-
-                                new_name = self.get_random_name(
-                                    gender=gender,
-                                    groups=name_groups,
-                                    distribution=config.get('distribution', 'proportional'),
-                                    full_name=full_name_mode
-                                )
-
-                                update_parts.append(f"`{name_col}` = %s")
+                                if not (preserve_null and row.get(email_column) is None):
+                                    update_parts.append(f"`{email_column}` = %s")
 
                             if not update_parts:
                                 results['skipped_rows'] += 1
@@ -376,15 +475,49 @@ class NameRandomizer:
 
                                 # Prepare values
                                 values = []
-                                for name_col in name_columns:
-                                    if preserve_null and row.get(name_col) is None:
-                                        continue
-                                    values.append(self.get_random_name(
-                                        gender=gender,
-                                        groups=name_groups,
-                                        distribution=config.get('distribution', 'proportional'),
-                                        full_name=full_name_mode
-                                    ))
+
+                                # Add name values if updating names
+                                if name_columns and update_names:
+                                    for name_col in name_columns:
+                                        if preserve_null and row.get(name_col) is None:
+                                            continue
+                                        new_name = self.get_random_name(
+                                            gender=gender,
+                                            groups=name_groups,
+                                            distribution=config.get('distribution', 'proportional'),
+                                            full_name=full_name_mode
+                                        )
+                                        values.append(new_name)
+                                        # Store first generated name for email
+                                        if generated_name is None:
+                                            generated_name = new_name
+
+                                # Add email value if updating emails
+                                if email_column and update_emails:
+                                    if not (preserve_null and row.get(email_column) is None):
+                                        # If we generated new names, use those for email
+                                        if generated_name:
+                                            new_email = self.generate_email(generated_name, full_name_mode)
+                                        else:
+                                            # Otherwise, read existing names from the row
+                                            if name_columns:
+                                                # Combine all selected name columns
+                                                name_parts = []
+                                                for name_col in name_columns:
+                                                    name_val = row.get(name_col)
+                                                    if name_val:
+                                                        name_parts.append(str(name_val))
+
+                                                if name_parts:
+                                                    existing_name = ' '.join(name_parts) if len(name_parts) > 1 else name_parts[0]
+                                                else:
+                                                    existing_name = "user"
+                                            else:
+                                                existing_name = "user"
+
+                                            new_email = self.generate_email(existing_name, full_name_mode)
+                                        values.append(new_email)
+
                                 values.append(pk_value)
 
                                 cursor.execute(update_query, tuple(values))

@@ -80,6 +80,7 @@ class DDAApplication:
         self.selected_table = tk.StringVar()
         self.gender_column_var = tk.StringVar()
         self.name_columns_listvar = tk.StringVar()
+        self.email_column_var = tk.StringVar()
         self.target_gender = tk.StringVar(value='both')
         self.full_name_mode = tk.BooleanVar(value=False)
         self.filter_column_var = tk.StringVar()
@@ -625,6 +626,23 @@ Click OK only if you understand and accept these terms.
 
         scrollbar.config(command=self.name_columns_listbox.yview)
 
+        # Email column selector
+        tk.Label(
+            content,
+            text="Email Column (optional):",
+            font=('Segoe UI', 9, 'bold'),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg']
+        ).pack(anchor='w', pady=(12, 4))
+
+        self.email_column_combo = ttk.Combobox(
+            content,
+            textvariable=self.email_column_var,
+            state='readonly',
+            font=('Segoe UI', 9)
+        )
+        self.email_column_combo.pack(fill=tk.X, pady=(0, 8))
+
         # Full name mode checkbox
         full_name_cb = tk.Checkbutton(
             content,
@@ -851,21 +869,57 @@ Click OK only if you understand and accept these terms.
         )
         preview_btn.pack(fill=tk.X, pady=(0, 10))
 
-        # Execute button
-        execute_btn = tk.Button(
-            content,
-            text="▶ Run Query (Update Names)",
-            command=self._execute_update,
+        # Execute buttons - three options
+        buttons_frame = tk.Frame(content, bg=self.colors['secondary_bg'])
+        buttons_frame.pack(fill=tk.X, pady=(0, 15))
+
+        # Generate Names button
+        names_btn = tk.Button(
+            buttons_frame,
+            text="▶ Generate Names",
+            command=lambda: self._execute_update(mode='names'),
             bg=self.colors['success'],
             fg='white',
-            font=('Segoe UI', 11, 'bold'),
+            font=('Segoe UI', 10, 'bold'),
             relief=tk.FLAT,
-            padx=20,
-            pady=12,
+            padx=15,
+            pady=10,
             cursor='hand2',
             borderwidth=0
         )
-        execute_btn.pack(fill=tk.X, pady=(0, 15))
+        names_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
+
+        # Generate Emails button
+        emails_btn = tk.Button(
+            buttons_frame,
+            text="📧 Generate Emails",
+            command=lambda: self._execute_update(mode='emails'),
+            bg=self.colors['info'],
+            fg='white',
+            font=('Segoe UI', 10, 'bold'),
+            relief=tk.FLAT,
+            padx=15,
+            pady=10,
+            cursor='hand2',
+            borderwidth=0
+        )
+        emails_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5, 5))
+
+        # Generate Both button
+        both_btn = tk.Button(
+            buttons_frame,
+            text="▶ Generate Both",
+            command=lambda: self._execute_update(mode='both'),
+            bg=self.colors['accent'],
+            fg='white',
+            font=('Segoe UI', 10, 'bold'),
+            relief=tk.FLAT,
+            padx=15,
+            pady=10,
+            cursor='hand2',
+            borderwidth=0
+        )
+        both_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5, 0))
 
         # Separator
         separator = tk.Frame(content, bg=self.colors['border'], height=1)
@@ -1787,6 +1841,9 @@ Click OK only if you understand and accept these terms.
                 # Populate filter column dropdown
                 self.filter_column_combo['values'] = [''] + self.available_columns
 
+                # Populate email column dropdown
+                self.email_column_combo['values'] = [''] + self.available_columns
+
                 # Populate name columns listbox
                 self.name_columns_listbox.delete(0, tk.END)
                 for col in self.available_columns:
@@ -1999,20 +2056,58 @@ LIMIT 1000;  -- Batch size (repeats until all matching rows updated)
         )
         close_btn.pack(pady=(0, 15))
 
-    def _execute_update(self):
-        """Execute the name randomization update."""
+    def _execute_update(self, mode='both'):
+        """Execute the name randomization update.
+
+        Args:
+            mode: 'names', 'emails', or 'both'
+        """
         if not self._validate_config():
             return
 
-        # Confirmation dialog
+        # Build config based on mode
+        config = self._build_config()
         name_cols = self._get_selected_name_columns()
+        email_col = self.email_column_var.get()
         table = self.selected_table.get()
         selected_groups = [g for g, v in self.group_vars.items() if v.get()]
+
+        # Add flags to control what gets updated
+        if mode == 'names':
+            config['email_column'] = None
+            config['update_names'] = True
+            config['update_emails'] = False
+            if not name_cols:
+                messagebox.showerror("Error", "Please select at least one name column")
+                return
+        elif mode == 'emails':
+            # Keep name_columns in config to READ existing names, but don't update them
+            config['update_names'] = False
+            config['update_emails'] = True
+            if not email_col:
+                messagebox.showerror("Error", "Please select an email column")
+                return
+            if not name_cols:
+                messagebox.showerror("Error", "Please select at least one name column to use for email generation")
+                return
+        else:  # both
+            config['update_names'] = True
+            config['update_emails'] = True
+            if not name_cols and not email_col:
+                messagebox.showerror("Error", "Please select at least one name or email column")
+                return
+
+        # Build confirmation message
+        updates = []
+        if mode in ['names', 'both'] and name_cols:
+            updates.append(f"Names: {', '.join(name_cols)}")
+        if mode in ['emails', 'both'] and email_col:
+            updates.append(f"Email: {email_col}")
 
         msg = f"""Are you sure you want to run this query?
 
 Table: {table}
-Columns: {', '.join(name_cols)}
+Updating: {' | '.join(updates)}
 Target Gender: {self.target_gender.get()}
 Name Groups: {', '.join(selected_groups)}
 Full Name Mode: {'Yes' if self.full_name_mode.get() else 'No'}
@@ -2024,11 +2119,11 @@ Transactions will be used (can rollback on error)."""
             return
 
         try:
-            self._log("Running query...", 'info')
-            self.status_label.config(text="● Running query... Please wait", fg=self.colors['warning'])
+            mode_text = {'names': 'names', 'emails': 'emails', 'both': 'names and emails'}[mode]
+            self._log(f"Generating {mode_text}...", 'info')
+            self.status_label.config(text=f"● Generating {mode_text}... Please wait", fg=self.colors['warning'])
             self.root.update()
 
-            config = self._build_config()
             result = self.name_randomizer.execute_update(config, dry_run=False)
 
             # Log all errors to activity log
@@ -2171,14 +2266,19 @@ Gender values randomly assigned (50/50 split)."""
             messagebox.showerror("Error", "Please select a gender column")
             return False
 
-        if not self._get_selected_name_columns():
-            messagebox.showerror("Error", "Please select at least one name column")
+        # At least one of name columns or email column must be selected
+        name_cols = self._get_selected_name_columns()
+        email_col = self.email_column_var.get()
+        if not name_cols and not email_col:
+            messagebox.showerror("Error", "Please select at least one name column or an email column")
             return False
 
-        selected_groups = [g for g, v in self.group_vars.items() if v.get()]
-        if not selected_groups:
-            messagebox.showerror("Error", "Please select at least one name group")
-            return False
+        # Name groups only required if generating names
+        if name_cols:
+            selected_groups = [g for g, v in self.group_vars.items() if v.get()]
+            if not selected_groups:
+                messagebox.showerror("Error", "Please select at least one name group")
+                return False
 
         return True
 
@@ -2195,10 +2295,13 @@ Gender values randomly assigned (50/50 split)."""
             escaped_val = filter_val.replace("'", "''")
             where_clause = f"`{filter_col}` = '{escaped_val}'"
 
+        email_col = self.email_column_var.get()
+
         return {
             'table': self.selected_table.get(),
             'gender_column': self.gender_column_var.get(),
             'name_columns': self._get_selected_name_columns(),
+            'email_column': email_col if email_col else None,
             'target_gender': self.target_gender.get(),
             'name_groups': selected_groups,
             'distribution': 'proportional',
@@ -4184,10 +4287,23 @@ Errors: {len(result['errors'])}"""
         )
         filter_value_entry.pack(fill=tk.X, pady=(0, 8))
 
+        # ONLY NULL checkbox
+        only_null_cb = tk.Checkbutton(
+            content,
+            text="  ONLY NULL (update only rows where date columns are NULL)",
+            variable=self.date_only_null_var,
+            font=('Segoe UI', 9),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg'],
+            selectcolor=self.colors['tertiary_bg'],
+            activebackground=self.colors['secondary_bg']
+        )
+        only_null_cb.pack(anchor='w', pady=(8, 8))
+
         # Help text
         tk.Label(
             content,
-            text="Only update rows where Filter Column = Filter Value",
+            text="Filter: Match specific value | ONLY NULL: Update empty values only",
             font=('Segoe UI', 8),
             fg=self.colors['text_secondary'],
             bg=self.colors['secondary_bg'],
@@ -5271,10 +5387,23 @@ Errors: {len(result['errors'])}"""
         )
         filter_value_entry.pack(fill=tk.X, pady=(0, 8))
 
+        # ONLY NULL checkbox
+        only_null_cb = tk.Checkbutton(
+            content,
+            text="  ONLY NULL (update only rows where code columns are NULL)",
+            variable=self.code_only_null_var,
+            font=('Segoe UI', 9),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg'],
+            selectcolor=self.colors['tertiary_bg'],
+            activebackground=self.colors['secondary_bg']
+        )
+        only_null_cb.pack(anchor='w', pady=(8, 8))
+
         # Help text
         tk.Label(
             content,
-            text="Only update rows where Filter Column = Filter Value",
+            text="Filter: Match specific value | ONLY NULL: Update empty values only",
             font=('Segoe UI', 8),
             fg=self.colors['text_secondary'],
             bg=self.colors['secondary_bg'],
@@ -6344,14 +6473,30 @@ Errors: {len(result['errors'])}"""
             relief=tk.FLAT,
             bd=1
         )
-        filter_value_entry.pack(fill=tk.X, pady=(0, 4))
+        filter_value_entry.pack(fill=tk.X, pady=(0, 8))
 
+        # ONLY NULL checkbox
+        only_null_cb = tk.Checkbutton(
+            content,
+            text="  ONLY NULL (update only rows where location columns are NULL)",
+            variable=self.location_only_null_var,
+            font=('Segoe UI', 9),
+            fg=self.colors['fg'],
+            bg=self.colors['secondary_bg'],
+            selectcolor=self.colors['tertiary_bg'],
+            activebackground=self.colors['secondary_bg']
+        )
+        only_null_cb.pack(anchor='w', pady=(8, 8))
+
+        # Help text
         tk.Label(
             content,
-            text="Example: Only update rows where status='active'",
-            font=('Segoe UI', 7, 'italic'),
+            text="Filter: Match specific value | ONLY NULL: Update empty values only",
+            font=('Segoe UI', 8),
             fg=self.colors['text_secondary'],
-            bg=self.colors['secondary_bg']
+            bg=self.colors['secondary_bg'],
+            wraplength=320,
+            justify='left'
         ).pack(anchor='w')
 
     def _create_location_action_panel(self, parent):
@@ -6669,6 +6814,17 @@ Errors: {len(result['errors'])}"""
             return False
 
         return True
+
+    def _get_selected_location_columns(self) -> List[str]:
+        """Get selected location columns (lat and lng)."""
+        columns = []
+        lat_col = self.location_lat_column_var.get()
+        lng_col = self.location_lng_column_var.get()
+        if lat_col:
+            columns.append(lat_col)
+        if lng_col:
+            columns.append(lng_col)
+        return columns
 
     def _build_location_config(self) -> Dict[str, Any]:
         """Build configuration dictionary for location randomizer."""
